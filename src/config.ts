@@ -68,6 +68,13 @@ async function resolveHuntrClerkToken(): Promise<string | undefined> {
     const path = `/v1/client/sessions/${sessionId}/tokens?_clerk_js_version=${CLERK_JS_VERSION}`;
 
     return new Promise<string | undefined>((resolve) => {
+      let settled = false;
+      const finish = (value: string | undefined): void => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
       const req = https.request(
         {
           hostname: 'clerk.huntr.co',
@@ -85,26 +92,26 @@ async function resolveHuntrClerkToken(): Promise<string | undefined> {
         (res) => {
           let body = '';
           res.on('data', (chunk: Buffer) => { body += chunk.toString(); });
-          res.on('error', () => resolve(undefined));
+          res.on('error', () => finish(undefined));
           res.on('end', () => {
             if (res.statusCode === 200 || res.statusCode === 201) {
               try {
                 const data = JSON.parse(body) as { jwt?: string };
-                resolve(data.jwt ?? undefined);
+                finish(data.jwt ?? undefined);
               } catch {
-                resolve(undefined);
+                finish(undefined);
               }
             } else {
-              resolve(undefined);
+              finish(undefined);
             }
           });
         },
       );
       req.setTimeout(CLERK_REQUEST_TIMEOUT_MS, () => {
         req.destroy();
-        resolve(undefined);
+        finish(undefined);
       });
-      req.on('error', () => resolve(undefined));
+      req.on('error', () => finish(undefined));
       req.end();
     });
   } catch {

@@ -51,17 +51,17 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          ARGS=""
+          ARGS=()
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
+            ARGS+=("--dry-run")
           fi
           if [ -n "${{ github.event.inputs.job }}" ]; then
-            ARGS="$ARGS --job ${{ github.event.inputs.job }}"
+            ARGS+=("--job" "${{ github.event.inputs.job }}")
           fi
           if [ -n "${{ github.event.inputs.stack }}" ]; then
-            ARGS="$ARGS --stack ${{ github.event.inputs.stack }}"
+            ARGS+=("--stack" "${{ github.event.inputs.stack }}")
           fi
-          npm run release -- $ARGS
+          npm run release -- "${ARGS[@]}"
 
       - name: Upload tailored resumes as artifacts
         uses: actions/upload-artifact@v4

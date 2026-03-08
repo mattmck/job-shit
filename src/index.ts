@@ -44,4 +44,11 @@ program
     }
   });
 
-program.parse();
+(async () => {
+  try {
+    await program.parseAsync(process.argv);
+  } catch (err) {
+    console.error("❌  Command execution failed:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+})();

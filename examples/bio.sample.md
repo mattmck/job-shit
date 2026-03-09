@@ -20,7 +20,7 @@ Write a short paragraph (3–5 sentences) that describes:
 
 In a second paragraph, summarize:
 
-- The main areas you’ve worked in (e.g., backend services, data platforms, mobile apps, infrastructure).
+- The main areas you've worked in (e.g., backend services, data platforms, mobile apps, infrastructure).
 - How your work has connected to business outcomes (reliability, speed of delivery, cost savings, user impact, etc.).
 
 ## What I look for
@@ -28,4 +28,4 @@ In a second paragraph, summarize:
 In a final paragraph, describe:
 
 - The team cultures and values that bring out your best work.
-- The responsibilities and growth areas you’re most excited about (hands-on building, leadership, collaboration, etc.).
+- The responsibilities and growth areas you're most excited about (hands-on building, leadership, collaboration, etc.).

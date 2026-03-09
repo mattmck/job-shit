@@ -4,3 +4,7 @@ dist/
 *.env.local
 output/*
 !output/.gitkeep
+resume.md
+bio.md
+cover-letter.md
+resume-supplemental.md

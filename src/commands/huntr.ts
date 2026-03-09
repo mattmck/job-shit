@@ -5,6 +5,7 @@ import { loadConfig, resolveHuntrToken } from '../config.js';
 import { createAnthropicClient } from '../lib/ai.js';
 import { tailorDocuments } from '../lib/tailor.js';
 import { findFile, readFile, findOptionalFiles, JOB_SHIT_DIR } from '../lib/files.js';
+import { renderResumeHtml } from '../lib/render.js';
 
 // ---------------------------------------------------------------------------
 // Huntr API types (inlined — huntr-cli has no library exports)
@@ -333,11 +334,9 @@ export function registerHuntrCommand(program: Command): void {
 
       // Resolve job — use explicit board or search all boards
       let job: HuntrJob;
-      let boardId: string;
 
       if (opts.board) {
-        boardId = opts.board;
-        job = await client.get<HuntrJob>(`/board/${boardId}/jobs/${jobId}`);
+        job = await client.get<HuntrJob>(`/board/${opts.board}/jobs/${jobId}`);
       } else {
         console.log('Board not specified — searching all boards...');
         const found = await findJobAcrossBoards(client, jobId);
@@ -345,7 +344,7 @@ export function registerHuntrCommand(program: Command): void {
           console.error(`Error: Job ${jobId} not found in any active board.`);
           process.exit(1);
         }
-        ({ job, boardId } = found);
+        ({ job } = found);
       }
 
       console.log(`\nUsing resume: ${resumePath}`);

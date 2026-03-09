@@ -5,6 +5,8 @@ import { loadConfig } from '../config.js';
 import { createAnthropicClient } from '../lib/ai.js';
 import { tailorDocuments } from '../lib/tailor.js';
 import { findFile, readFile, findOptionalFiles, JOB_SHIT_DIR } from '../lib/files.js';
+import { renderResumeHtml } from '../lib/render.js';
+
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }

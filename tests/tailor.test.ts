@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { tailorDocuments, tailorResume } from '../src/lib/tailor.js';
 import { TailorInput } from '../src/types/index.js';
 import * as aiModule from '../src/lib/ai.js';
-import type OpenAI from 'openai';
+import type Anthropic from '@anthropic-ai/sdk';
 
 const sampleInput: TailorInput = {
   resume: '# Jane Doe',
@@ -23,7 +23,7 @@ describe('tailorDocuments', () => {
       .mockImplementationOnce(async () => '# Tailored Resume')
       .mockImplementationOnce(async () => 'Dear Hiring Manager,');
 
-    const result = await tailorDocuments({} as OpenAI, 'gpt-4o', sampleInput);
+    const result = await tailorDocuments({} as Anthropic, 'claude-sonnet-4-5', sampleInput);
 
     expect(completeSpy).toHaveBeenCalledTimes(2);
     expect(result.resume).toBe('# Tailored Resume');
@@ -35,7 +35,7 @@ describe('tailorDocuments', () => {
       .mockImplementationOnce(async () => { throw new Error('API timeout'); })
       .mockImplementationOnce(async () => 'Cover letter');
 
-    await expect(tailorDocuments({} as OpenAI, 'gpt-4o', sampleInput)).rejects.toThrow('API timeout');
+    await expect(tailorDocuments({} as Anthropic, 'claude-sonnet-4-5', sampleInput)).rejects.toThrow('API timeout');
   });
 });
 
@@ -49,7 +49,7 @@ describe('tailorResume', () => {
       .spyOn(aiModule, 'complete')
       .mockResolvedValueOnce('# Stack-Tailored Resume');
 
-    const result = await tailorResume({} as OpenAI, 'gpt-4o', sampleInput);
+    const result = await tailorResume({} as Anthropic, 'claude-sonnet-4-5', sampleInput);
 
     expect(completeSpy).toHaveBeenCalledTimes(1);
     expect(result).toBe('# Stack-Tailored Resume');
@@ -58,6 +58,6 @@ describe('tailorResume', () => {
   it('propagates errors from the AI call', async () => {
     vi.spyOn(aiModule, 'complete').mockRejectedValueOnce(new Error('API timeout'));
 
-    await expect(tailorResume({} as OpenAI, 'gpt-4o', sampleInput)).rejects.toThrow('API timeout');
+    await expect(tailorResume({} as Anthropic, 'claude-sonnet-4-5', sampleInput)).rejects.toThrow('API timeout');
   });
 });

@@ -1,5 +1,14 @@
-# Jordan Avery
+# SAMPLE RESUME TEMPLATE – DO NOT USE AS-IS
 
+This file is a **sample resume** used as a template for the `job-shit` CLI.
+
+- Copy this file to `resume.md` in your working directory.
+- Replace **all** example content with your own real information.
+- Do **not** run the CLI using this unmodified file as your resume.
+
+---
+
+# Sample Candidate: Jordan Avery
 ## Senior Software Engineer
 
 <jordan.avery@example.com> | (555) 123-4567 | Chicago, IL | Open to remote / hybrid

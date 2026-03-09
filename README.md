@@ -61,6 +61,13 @@ Outputs:
 
 Within each location the **most recently modified** matching file is used automatically, so saving `resume-2026-03.md` will pick it up without changing any flags.
 
+Starter templates are in the [`examples/`](examples/) directory — copy and rename them to get started:
+
+```bash
+cp examples/resume.sample.md resume.md
+cp examples/bio.sample.md bio.md
+```
+
 ### Huntr.co integration (bonus)
 
 ```bash

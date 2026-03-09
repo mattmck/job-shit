@@ -472,7 +472,7 @@ async function tailorAndWrite(args: {
   bio: string;
   baseCoverLetter?: string;
   resumeSupplemental?: string;
-  aiClient: Awaited<ReturnType<typeof createAnthropicClient>>;
+  aiClient: ReturnType<typeof createAnthropicClient>;
   model: string;
   outputDir: string;
 }): Promise<void> {

@@ -296,9 +296,9 @@ const CSS = `
 
 /**
  * Convert a tailored resume (markdown) to a styled, print-ready HTML string.
- * Open the file in Chrome and Cmd+P → Save as PDF.
+ * The resulting HTML can be opened in a browser or passed to renderPdf() to generate a PDF.
  */
-export function renderResumeHtml(markdown: string, pageTitle = 'Matthew McKnight - Resume'): string {
+export function renderResumeHtml(markdown: string, pageTitle = 'Resume'): string {
   const cleaned = markdown
     .replace(/<!--[\s\S]*?-->/g, '')   // strip AI-only HTML comments
     .replace(/^• /gm, '- ')            // convert bullet chars to markdown list items
@@ -328,7 +328,7 @@ ${body.trim().split('\n').map(l => `    ${l}`).join('\n')}
 /**
  * Convert a tailored cover letter (markdown) to a styled, print-ready HTML string.
  */
-export function renderCoverLetterHtml(markdown: string, pageTitle = 'Matthew McKnight - Cover Letter'): string {
+export function renderCoverLetterHtml(markdown: string, pageTitle = 'Cover Letter'): string {
   const m = new Marked();
   const body = sanitizeHtml(m.parse(markdown) as string);
   const safeTitle = escapeHtml(pageTitle);

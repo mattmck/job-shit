@@ -563,13 +563,13 @@ async function tailorAndWrite(args: {
   writeFileSync(coverLetterOut, output.coverLetter, 'utf8');
 
   const resumeHtmlOut = join(outputDir, `resume-${slug}.html`);
-  writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Matthew McKnight - Resume - ${companyName}`), 'utf8');
+  writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Resume - ${companyName}`), 'utf8');
 
   const resumePdfOut = join(outputDir, `resume-${slug}.pdf`);
   await renderPdf(resumeHtmlOut, resumePdfOut);
 
   const coverLetterHtmlOut = join(outputDir, `cover-letter-${slug}.html`);
-  writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Matthew McKnight - Cover Letter - ${companyName}`), 'utf8');
+  writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Cover Letter - ${companyName}`), 'utf8');
 
   const coverLetterPdfOut = join(outputDir, `cover-letter-${slug}.pdf`);
   await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);

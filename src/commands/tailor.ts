@@ -120,13 +120,13 @@ export function registerTailorCommand(program: Command): void {
       writeFileSync(coverLetterOut, output.coverLetter, 'utf8');
 
       const resumeHtmlOut = join(opts.output, `resume-${slug}.html`);
-      writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Matthew McKnight - Resume - ${opts.company}`), 'utf8');
+      writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Resume - ${opts.company}`), 'utf8');
 
       const resumePdfOut = join(opts.output, `resume-${slug}.pdf`);
       await renderPdf(resumeHtmlOut, resumePdfOut);
 
       const coverLetterHtmlOut = join(opts.output, `cover-letter-${slug}.html`);
-      writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Matthew McKnight - Cover Letter - ${opts.company}`), 'utf8');
+      writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Cover Letter - ${opts.company}`), 'utf8');
 
       const coverLetterPdfOut = join(opts.output, `cover-letter-${slug}.pdf`);
       await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);

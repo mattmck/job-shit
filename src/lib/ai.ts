@@ -1,6 +1,40 @@
 import OpenAI, { AzureOpenAI } from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 
+// ── Client caches (one instance per unique configuration) ───────────────────
+const openaiClients = new Map<string, OpenAI>();
+const azureClients = new Map<string, AzureOpenAI>();
+const anthropicClients = new Map<string, Anthropic>();
+
+function getOpenAIClient(apiKey: string, baseURL?: string): OpenAI {
+  const key = `${apiKey}|${baseURL ?? ''}`;
+  let client = openaiClients.get(key);
+  if (!client) {
+    client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+    openaiClients.set(key, client);
+  }
+  return client;
+}
+
+function getAzureClient(endpoint: string, apiKey: string, apiVersion: string, deployment: string): AzureOpenAI {
+  const key = `${endpoint}|${apiKey}|${apiVersion}|${deployment}`;
+  let client = azureClients.get(key);
+  if (!client) {
+    client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
+    azureClients.set(key, client);
+  }
+  return client;
+}
+
+function getAnthropicClient(apiKey: string): Anthropic {
+  let client = anthropicClients.get(apiKey);
+  if (!client) {
+    client = new Anthropic({ apiKey });
+    anthropicClients.set(apiKey, client);
+  }
+  return client;
+}
+
 /**
  * Resolve an abstract model alias to a provider-specific model ID.
  * If the hint already looks like a real model ID, pass it through.
@@ -76,10 +110,7 @@ export async function complete(
     vlog(verbose, `    🔧  Gemini · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new OpenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    });
+    const client = getOpenAIClient(process.env.GEMINI_API_KEY, 'https://generativelanguage.googleapis.com/v1beta/openai/');
     return withRetry(async () => {
       const resp = await client.chat.completions.create({
         model: resolved,
@@ -101,12 +132,12 @@ export async function complete(
     vlog(verbose, `    🔧  Azure OpenAI · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new AzureOpenAI({
-      endpoint: process.env.AZURE_OPENAI_ENDPOINT,
-      apiKey: process.env.AZURE_OPENAI_API_KEY,
-      apiVersion: process.env.AZURE_OPENAI_API_VERSION ?? '2024-12-01-preview',
-      deployment: resolved,
-    });
+    const client = getAzureClient(
+      process.env.AZURE_OPENAI_ENDPOINT,
+      process.env.AZURE_OPENAI_API_KEY,
+      process.env.AZURE_OPENAI_API_VERSION ?? '2024-12-01-preview',
+      resolved,
+    );
     return withRetry(async () => {
       const resp = await client.chat.completions.create({
         model: resolved,
@@ -128,10 +159,7 @@ export async function complete(
     vlog(verbose, `    🔧  OpenAI · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      ...(process.env.OPENAI_BASE_URL ? { baseURL: process.env.OPENAI_BASE_URL } : {}),
-    });
+    const client = getOpenAIClient(process.env.OPENAI_API_KEY, process.env.OPENAI_BASE_URL);
     return withRetry(async () => {
       const resp = await client.chat.completions.create({
         model: resolved,
@@ -153,7 +181,7 @@ export async function complete(
     vlog(verbose, `    🔧  Anthropic · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = getAnthropicClient(process.env.ANTHROPIC_API_KEY);
     return withRetry(async () => {
       const msg = await client.messages.create({
         model: resolved,

@@ -156,7 +156,14 @@ export async function resolveHuntrToken(): Promise<string | undefined> {
 }
 
 export function loadConfig(): Config {
-  return {
-    model: process.env.ANTHROPIC_MODEL ?? process.env.OPENAI_MODEL ?? 'claude-sonnet-4-5',
-  };
+  // Check provider-specific model overrides in the same priority order used by complete():
+  //   GEMINI_MODEL → OPENAI_MODEL → ANTHROPIC_MODEL → 'auto'
+  // 'auto' is resolved per-provider inside complete() via resolveModel().
+  // Note: Azure deployments are controlled by AZURE_OPENAI_DEPLOYMENT (handled directly in complete()).
+  const model =
+    process.env.GEMINI_MODEL ??
+    process.env.OPENAI_MODEL ??
+    process.env.ANTHROPIC_MODEL ??
+    'auto';
+  return { model };
 }

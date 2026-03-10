@@ -115,7 +115,9 @@ Optional:
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_MODEL` / `OPENAI_MODEL` | Override the default model for that provider |
+| `GEMINI_MODEL` | Override Gemini model (default: `gemini-2.0-flash-lite`) |
+| `OPENAI_MODEL` | Override OpenAI model (default: `gpt-4o-mini`) |
+| `ANTHROPIC_MODEL` | Override Anthropic model (default: `claude-haiku-4-5-20251001`) |
 | `AZURE_OPENAI_DEPLOYMENT` | Azure deployment name (default: `gpt-4o-mini`) |
 | `AZURE_OPENAI_API_VERSION` | Azure API version (default: `2024-12-01-preview`) |
 | `OPENAI_BASE_URL` | Custom base URL for OpenAI-compatible endpoints |

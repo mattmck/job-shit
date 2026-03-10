@@ -156,7 +156,18 @@ export async function resolveHuntrToken(): Promise<string | undefined> {
 }
 
 export function loadConfig(): Config {
-  return {
-    model: process.env.ANTHROPIC_MODEL ?? process.env.OPENAI_MODEL ?? 'claude-sonnet-4-5',
-  };
+  // Pick the model env var that matches the active provider, mirroring the
+  // provider priority in complete(): Gemini → Azure → OpenAI → Anthropic.
+  // Fall back to 'auto' so resolveModel() picks the right provider default.
+  let model: string;
+  if (process.env.GEMINI_API_KEY) {
+    model = process.env.GEMINI_MODEL ?? 'auto';
+  } else if (process.env.AZURE_OPENAI_ENDPOINT && process.env.AZURE_OPENAI_API_KEY) {
+    model = process.env.AZURE_OPENAI_DEPLOYMENT ?? 'auto';
+  } else if (process.env.OPENAI_API_KEY) {
+    model = process.env.OPENAI_MODEL ?? 'auto';
+  } else {
+    model = process.env.ANTHROPIC_MODEL ?? 'auto';
+  }
+  return { model };
 }

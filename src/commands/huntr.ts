@@ -116,6 +116,7 @@ function slugify(text: string): string {
 const JOB_BOARD_DOMAINS = new Set([
   'linkedin.com', 'indeed.com', 'glassdoor.com', 'ziprecruiter.com',
   'dice.com', 'monster.com', 'simplyhired.com', 'careerbuilder.com',
+  'greenhouse.io', 'boards.greenhouse.io', 'lever.co', 'jobs.lever.co',
 ]);
 
 /**
@@ -177,14 +178,22 @@ function extractCompanyName(job: HuntrJob): string {
     try {
       const url = new URL(job.url);
       const hostname = url.hostname.replace(/^www\./, '');
-      
-      // If it's not a job board, the hostname is likely the company
+
+      // Greenhouse/Lever board URLs carry the company slug in the path
+      // e.g. boards.greenhouse.io/<company>/jobs/... or jobs.lever.co/<company>/...
+      if (hostname === 'boards.greenhouse.io' || hostname === 'jobs.lever.co') {
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0) return decodeURIComponent(pathParts[0]);
+      }
+
+      // Company-specific Greenhouse/Lever subdomains (e.g. acme.greenhouse.io)
+      if (hostname.endsWith('.greenhouse.io') || hostname.endsWith('.lever.co')) {
+        const subdomain = hostname.split('.')[0];
+        if (subdomain) return subdomain;
+      }
+
+      // If it's not a known job board, the hostname likely belongs to the company
       if (!JOB_BOARD_DOMAINS.has(hostname)) {
-        // Handle greenhouse/lever specific board names
-        if (hostname.includes('greenhouse.io') || hostname.includes('lever.co')) {
-          const parts = hostname.split('.');
-          if (parts.length > 2) return parts[0];
-        }
         return hostname;
       }
     } catch { /* fall through */ }

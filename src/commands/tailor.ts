@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { loadConfig } from '../config.js';
 import { tailorDocuments } from '../lib/tailor.js';
+import { createCompleteFunction } from '../lib/ai.js';
 import { findFile, readFile, JOB_SHIT_DIR } from '../lib/files.js';
 import { renderResumeHtml, renderCoverLetterHtml, renderPdf } from '../lib/render.js';
 
@@ -89,6 +90,7 @@ export function registerTailorCommand(program: Command): void {
       }
 
       const config = loadConfig();
+      const complete = createCompleteFunction();
 
       console.log(`\nUsing resume: ${resumePath}`);
       console.log(`Using bio:    ${bioPath}`);
@@ -103,7 +105,7 @@ export function registerTailorCommand(program: Command): void {
         company: opts.company,
         jobTitle: opts.title,
         jobDescription,
-      }, opts.verbose);
+      }, opts.verbose, complete);
 
       // Write outputs
       if (!existsSync(opts.output)) {

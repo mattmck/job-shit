@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { loadConfig, resolveHuntrToken } from '../config.js';
 import { tailorDocuments } from '../lib/tailor.js';
+import { createCompleteFunction, type CompleteFn } from '../lib/ai.js';
 import { findFile, readFile, JOB_SHIT_DIR } from '../lib/files.js';
 import { renderResumeHtml, renderCoverLetterHtml, renderPdf } from '../lib/render.js';
 
@@ -394,8 +395,9 @@ export function registerHuntrCommand(program: Command): void {
       if (supplementalPath) console.log(`Using supplemental: ${supplementalPath}`);
 
       const config = loadConfig();
+      const complete = createCompleteFunction();
 
-      await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, verbose: opts.verbose });
+      await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, complete, outputDir: opts.output, verbose: opts.verbose });
     });
 
   // huntr tailor-all — tailor every wishlist job at once
@@ -452,12 +454,13 @@ export function registerHuntrCommand(program: Command): void {
       console.log(`Found ${wishlistJobs.length} wishlist job(s). Tailoring...\n`);
 
       const config = loadConfig();
+      const complete = createCompleteFunction();
 
       let done = 0;
       let failed = 0;
       for (const job of wishlistJobs) {
         try {
-          await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, verbose: opts.verbose });
+          await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, complete, outputDir: opts.output, verbose: opts.verbose });
           done++;
         } catch (err) {
           failed++;
@@ -525,10 +528,11 @@ async function tailorAndWrite(args: {
   baseCoverLetter?: string;
   resumeSupplemental?: string;
   model: string;
+  complete: CompleteFn;
   outputDir: string;
   verbose?: boolean;
 }): Promise<void> {
-  const { job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir, verbose = false } = args;
+  const { job, resume, bio, baseCoverLetter, resumeSupplemental, model, complete, outputDir, verbose = false } = args;
   const companyName = extractCompanyName(job);
   const jobDescription = job.htmlDescription
     ? stripHtml(job.htmlDescription)
@@ -549,7 +553,7 @@ async function tailorAndWrite(args: {
     company: companyName,
     jobTitle: job.title,
     jobDescription,
-  }, verbose);
+  }, verbose, complete);
 
   if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 

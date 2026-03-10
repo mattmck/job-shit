@@ -1,6 +1,14 @@
 import OpenAI, { AzureOpenAI } from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 
+/** Function signature for completing a single AI prompt. */
+export type CompleteFn = (
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  verbose?: boolean,
+) => Promise<string>;
+
 /**
  * Resolve an abstract model alias to a provider-specific model ID.
  * If the hint already looks like a real model ID, pass it through.
@@ -55,31 +63,19 @@ function vlog(verbose: boolean, msg: string): void {
 }
 
 /**
- * Send a prompt to the configured AI provider and return the text response.
- *
- * Provider priority (first matching env wins):
- *   1. GEMINI_API_KEY                              → Google Gemini (gemini-2.0-flash-lite)
- *   2. AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY → Azure AI Foundry / Azure OpenAI (gpt-4o-mini)
- *   3. OPENAI_API_KEY (+ optional OPENAI_BASE_URL)  → OpenAI or any OpenAI-compatible endpoint
- *   4. ANTHROPIC_API_KEY                            → Anthropic Claude (claude-haiku-4-5)
+ * Create a CompleteFn backed by Google Gemini via the OpenAI-compatible API.
+ * The SDK client is created once and reused across all calls.
  */
-export async function complete(
-  model: string,
-  systemPrompt: string,
-  userPrompt: string,
-  verbose = false,
-): Promise<string> {
-
-  // ── 1. Gemini ───────────────────────────────────────────────────────────
-  if (process.env.GEMINI_API_KEY) {
+export function makeGeminiComplete(apiKey: string): CompleteFn {
+  const client = new OpenAI({
+    apiKey,
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+  });
+  return async (model, systemPrompt, userPrompt, verbose = false) => {
     const resolved = resolveModel(model, 'gemini-2.0-flash-lite');
     vlog(verbose, `    🔧  Gemini · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new OpenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    });
     return withRetry(async () => {
       const resp = await client.chat.completions.create({
         model: resolved,
@@ -93,20 +89,25 @@ export async function complete(
       vlog(verbose, `    ⏱   ${((Date.now() - t0) / 1000).toFixed(1)}s · ${text.length} chars`);
       return text;
     });
-  }
+  };
+}
 
-  // ── 2. Azure AI Foundry / Azure OpenAI ──────────────────────────────────
-  if (process.env.AZURE_OPENAI_ENDPOINT && process.env.AZURE_OPENAI_API_KEY) {
-    const resolved = resolveModel(model, process.env.AZURE_OPENAI_DEPLOYMENT ?? 'gpt-4o-mini');
+/**
+ * Create a CompleteFn backed by Azure AI Foundry / Azure OpenAI.
+ * The SDK client is created once and reused across all calls.
+ */
+export function makeAzureOpenAIComplete(
+  endpoint: string,
+  apiKey: string,
+  deployment = 'gpt-4o-mini',
+  apiVersion = '2024-12-01-preview',
+): CompleteFn {
+  const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
+  return async (model, systemPrompt, userPrompt, verbose = false) => {
+    const resolved = resolveModel(model, deployment);
     vlog(verbose, `    🔧  Azure OpenAI · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new AzureOpenAI({
-      endpoint: process.env.AZURE_OPENAI_ENDPOINT,
-      apiKey: process.env.AZURE_OPENAI_API_KEY,
-      apiVersion: process.env.AZURE_OPENAI_API_VERSION ?? '2024-12-01-preview',
-      deployment: resolved,
-    });
     return withRetry(async () => {
       const resp = await client.chat.completions.create({
         model: resolved,
@@ -120,18 +121,23 @@ export async function complete(
       vlog(verbose, `    ⏱   ${((Date.now() - t0) / 1000).toFixed(1)}s · ${text.length} chars`);
       return text;
     });
-  }
+  };
+}
 
-  // ── 3. OpenAI (or custom OpenAI-compatible endpoint) ────────────────────
-  if (process.env.OPENAI_API_KEY) {
+/**
+ * Create a CompleteFn backed by OpenAI (or any OpenAI-compatible endpoint).
+ * The SDK client is created once and reused across all calls.
+ */
+export function makeOpenAIComplete(apiKey: string, baseURL?: string): CompleteFn {
+  const client = new OpenAI({
+    apiKey,
+    ...(baseURL ? { baseURL } : {}),
+  });
+  return async (model, systemPrompt, userPrompt, verbose = false) => {
     const resolved = resolveModel(model, 'gpt-4o-mini');
     vlog(verbose, `    🔧  OpenAI · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      ...(process.env.OPENAI_BASE_URL ? { baseURL: process.env.OPENAI_BASE_URL } : {}),
-    });
     return withRetry(async () => {
       const resp = await client.chat.completions.create({
         model: resolved,
@@ -145,15 +151,20 @@ export async function complete(
       vlog(verbose, `    ⏱   ${((Date.now() - t0) / 1000).toFixed(1)}s · ${text.length} chars`);
       return text;
     });
-  }
+  };
+}
 
-  // ── 4. Anthropic ─────────────────────────────────────────────────────────
-  if (process.env.ANTHROPIC_API_KEY) {
+/**
+ * Create a CompleteFn backed by Anthropic Claude.
+ * The SDK client is created once and reused across all calls.
+ */
+export function makeAnthropicComplete(apiKey: string): CompleteFn {
+  const client = new Anthropic({ apiKey });
+  return async (model, systemPrompt, userPrompt, verbose = false) => {
     const resolved = resolveModel(model, 'claude-haiku-4-5-20251001');
     vlog(verbose, `    🔧  Anthropic · ${resolved}`);
     vlog(verbose, `    📝  system ${systemPrompt.length} chars | user ${userPrompt.length} chars`);
     const t0 = Date.now();
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     return withRetry(async () => {
       const msg = await client.messages.create({
         model: resolved,
@@ -166,8 +177,39 @@ export async function complete(
       vlog(verbose, `    ⏱   ${((Date.now() - t0) / 1000).toFixed(1)}s · ${block.text.length} chars`);
       return block.text.trim();
     });
-  }
+  };
+}
 
+/**
+ * Select and create a CompleteFn based on the configured AI provider.
+ *
+ * Provider priority (first matching env wins):
+ *   1. GEMINI_API_KEY                              → Google Gemini (gemini-2.0-flash-lite)
+ *   2. AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY → Azure AI Foundry / Azure OpenAI (gpt-4o-mini)
+ *   3. OPENAI_API_KEY (+ optional OPENAI_BASE_URL)  → OpenAI or any OpenAI-compatible endpoint
+ *   4. ANTHROPIC_API_KEY                            → Anthropic Claude (claude-haiku-4-5)
+ *
+ * The returned function reuses a single SDK client instance for all calls, avoiding
+ * repeated client construction overhead across parallel or sequential completions.
+ */
+export function createCompleteFunction(): CompleteFn {
+  if (process.env.GEMINI_API_KEY) {
+    return makeGeminiComplete(process.env.GEMINI_API_KEY);
+  }
+  if (process.env.AZURE_OPENAI_ENDPOINT && process.env.AZURE_OPENAI_API_KEY) {
+    return makeAzureOpenAIComplete(
+      process.env.AZURE_OPENAI_ENDPOINT,
+      process.env.AZURE_OPENAI_API_KEY,
+      process.env.AZURE_OPENAI_DEPLOYMENT ?? 'gpt-4o-mini',
+      process.env.AZURE_OPENAI_API_VERSION ?? '2024-12-01-preview',
+    );
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return makeOpenAIComplete(process.env.OPENAI_API_KEY, process.env.OPENAI_BASE_URL);
+  }
+  if (process.env.ANTHROPIC_API_KEY) {
+    return makeAnthropicComplete(process.env.ANTHROPIC_API_KEY);
+  }
   throw new Error(
     'No AI provider configured. Set one of: GEMINI_API_KEY, AZURE_OPENAI_ENDPOINT+AZURE_OPENAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY.',
   );

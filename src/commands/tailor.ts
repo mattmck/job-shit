@@ -30,6 +30,7 @@ export function registerTailorCommand(program: Command): void {
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-t, --title <title>', 'Job title (inferred from JD if omitted)')
     .option('-o, --output <dir>', 'Output directory', 'output')
+    .option('--pdf', 'Generate PDF output (requires Chrome/Chromium — see `npm run setup`)')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
     .action(async (opts: {
       company: string;
@@ -39,6 +40,7 @@ export function registerTailorCommand(program: Command): void {
       supplemental?: string;
       title?: string;
       output: string;
+      pdf?: boolean;
       verbose?: boolean;
     }) => {
       // Resolve input files
@@ -120,22 +122,33 @@ export function registerTailorCommand(program: Command): void {
       writeFileSync(coverLetterOut, output.coverLetter, 'utf8');
 
       const resumeHtmlOut = join(opts.output, `resume-${slug}.html`);
-      writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Matthew McKnight - Resume - ${opts.company}`), 'utf8');
-
-      const resumePdfOut = join(opts.output, `resume-${slug}.pdf`);
-      await renderPdf(resumeHtmlOut, resumePdfOut);
+      writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Resume - ${opts.company}`), 'utf8');
 
       const coverLetterHtmlOut = join(opts.output, `cover-letter-${slug}.html`);
-      writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Matthew McKnight - Cover Letter - ${opts.company}`), 'utf8');
-
-      const coverLetterPdfOut = join(opts.output, `cover-letter-${slug}.pdf`);
-      await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);
+      writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Cover Letter - ${opts.company}`), 'utf8');
 
       console.log(`✓ resume       → ${resumeOut}`);
       console.log(`✓ resume (html)→ ${resumeHtmlOut}`);
-      console.log(`✓ resume (pdf) → ${resumePdfOut}`);
       console.log(`✓ cover letter → ${coverLetterOut}`);
       console.log(`✓ cl (html)    → ${coverLetterHtmlOut}`);
-      console.log(`✓ cl (pdf)     → ${coverLetterPdfOut}`);
+
+      if (opts.pdf) {
+        const resumePdfOut = join(opts.output, `resume-${slug}.pdf`);
+        try {
+          await renderPdf(resumeHtmlOut, resumePdfOut);
+          console.log(`✓ resume (pdf) → ${resumePdfOut}`);
+        } catch (err) {
+          console.warn(`⚠ PDF generation skipped: ${(err as Error).message}`);
+          console.warn('  Run `npm run setup` to check Chrome prerequisites.');
+        }
+
+        const coverLetterPdfOut = join(opts.output, `cover-letter-${slug}.pdf`);
+        try {
+          await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);
+          console.log(`✓ cl (pdf)     → ${coverLetterPdfOut}`);
+        } catch (err) {
+          console.warn(`⚠ PDF generation skipped: ${(err as Error).message}`);
+        }
+      }
     });
 }

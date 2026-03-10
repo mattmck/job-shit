@@ -358,6 +358,7 @@ export function registerHuntrCommand(program: Command): void {
     )
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-o, --output <dir>', 'Output directory', 'output')
+    .option('--pdf', 'Generate PDF output (requires Chrome/Chromium — see `npm run setup`)')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
     .action(async (jobId: string, opts: {
       board?: string;
@@ -365,6 +366,7 @@ export function registerHuntrCommand(program: Command): void {
       bio?: string;
       supplemental?: string;
       output: string;
+      pdf?: boolean;
       verbose?: boolean;
     }) => {
       const token = await requireHuntrToken();
@@ -374,11 +376,9 @@ export function registerHuntrCommand(program: Command): void {
 
       // Resolve job — use explicit board or search all boards
       let job: HuntrJob;
-      let boardId: string;
 
       if (opts.board) {
-        boardId = opts.board;
-        job = await client.get<HuntrJob>(`/board/${boardId}/jobs/${jobId}`);
+        job = await client.get<HuntrJob>(`/board/${opts.board}/jobs/${jobId}`);
       } else {
         console.log('Board not specified — searching all boards...');
         const found = await findJobAcrossBoards(client, jobId);
@@ -386,7 +386,7 @@ export function registerHuntrCommand(program: Command): void {
           console.error(`Error: Job ${jobId} not found in any active board.`);
           process.exit(1);
         }
-        ({ job, boardId } = found);
+        ({ job } = found);
       }
 
       console.log(`\nUsing resume: ${resumePath}`);
@@ -395,7 +395,7 @@ export function registerHuntrCommand(program: Command): void {
 
       const config = loadConfig();
 
-      await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, verbose: opts.verbose });
+      await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, pdf: opts.pdf, verbose: opts.verbose });
     });
 
   // huntr tailor-all — tailor every wishlist job at once
@@ -413,6 +413,7 @@ export function registerHuntrCommand(program: Command): void {
     )
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-o, --output <dir>', 'Output directory', 'output')
+    .option('--pdf', 'Generate PDF output (requires Chrome/Chromium — see `npm run setup`)')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
     .action(async (opts: {
       board?: string;
@@ -420,6 +421,7 @@ export function registerHuntrCommand(program: Command): void {
       bio?: string;
       supplemental?: string;
       output: string;
+      pdf?: boolean;
       verbose?: boolean;
     }) => {
       const token = await requireHuntrToken();
@@ -457,7 +459,7 @@ export function registerHuntrCommand(program: Command): void {
       let failed = 0;
       for (const job of wishlistJobs) {
         try {
-          await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, verbose: opts.verbose });
+          await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, pdf: opts.pdf, verbose: opts.verbose });
           done++;
         } catch (err) {
           failed++;
@@ -526,9 +528,10 @@ async function tailorAndWrite(args: {
   resumeSupplemental?: string;
   model: string;
   outputDir: string;
+  pdf?: boolean;
   verbose?: boolean;
 }): Promise<void> {
-  const { job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir, verbose = false } = args;
+  const { job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir, pdf = false, verbose = false } = args;
   const companyName = extractCompanyName(job);
   const jobDescription = job.htmlDescription
     ? stripHtml(job.htmlDescription)
@@ -563,21 +566,32 @@ async function tailorAndWrite(args: {
   writeFileSync(coverLetterOut, output.coverLetter, 'utf8');
 
   const resumeHtmlOut = join(outputDir, `resume-${slug}.html`);
-  writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Matthew McKnight - Resume - ${companyName}`), 'utf8');
-
-  const resumePdfOut = join(outputDir, `resume-${slug}.pdf`);
-  await renderPdf(resumeHtmlOut, resumePdfOut);
+  writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Resume - ${companyName}`), 'utf8');
 
   const coverLetterHtmlOut = join(outputDir, `cover-letter-${slug}.html`);
-  writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Matthew McKnight - Cover Letter - ${companyName}`), 'utf8');
-
-  const coverLetterPdfOut = join(outputDir, `cover-letter-${slug}.pdf`);
-  await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);
+  writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Cover Letter - ${companyName}`), 'utf8');
 
   console.log(`    ✓ resume       → ${resumeOut}`);
   console.log(`    ✓ resume (html)→ ${resumeHtmlOut}`);
-  console.log(`    ✓ resume (pdf) → ${resumePdfOut}`);
   console.log(`    ✓ cover letter → ${coverLetterOut}`);
   console.log(`    ✓ cl (html)    → ${coverLetterHtmlOut}`);
-  console.log(`    ✓ cl (pdf)     → ${coverLetterPdfOut}`);
+
+  if (pdf) {
+    const resumePdfOut = join(outputDir, `resume-${slug}.pdf`);
+    try {
+      await renderPdf(resumeHtmlOut, resumePdfOut);
+      console.log(`    ✓ resume (pdf) → ${resumePdfOut}`);
+    } catch (err) {
+      console.warn(`    ⚠ PDF generation skipped: ${(err as Error).message}`);
+      console.warn('      Run `npm run setup` to check Chrome prerequisites.');
+    }
+
+    const coverLetterPdfOut = join(outputDir, `cover-letter-${slug}.pdf`);
+    try {
+      await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);
+      console.log(`    ✓ cl (pdf)     → ${coverLetterPdfOut}`);
+    } catch (err) {
+      console.warn(`    ⚠ PDF generation skipped: ${(err as Error).message}`);
+    }
+  }
 }

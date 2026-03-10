@@ -1,8 +1,10 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { resolve } from 'path';
 import { existsSync } from 'fs';
+import { pathToFileURL } from 'url';
 import { Marked } from 'marked';
 import sanitizeHtmlLib from 'sanitize-html';
+import puppeteer from 'puppeteer-core';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -296,7 +298,7 @@ const CSS = `
 
 /**
  * Convert a tailored resume (markdown) to a styled, print-ready HTML string.
- * Open the file in Chrome and Cmd+P → Save as PDF.
+ * The resulting HTML can be opened in a browser or passed to renderPdf() to generate a PDF.
  */
 export function renderResumeHtml(markdown: string, pageTitle = 'Matthew McKnight - Resume'): string {
   const cleaned = markdown
@@ -371,28 +373,84 @@ ${body.trim().split('\n').map(l => `    ${l}`).join('\n')}
 }
 
 /**
- * Use the system's Google Chrome to render an HTML file to PDF.
- * This ensures the background and layout exactly match what the user sees in Chrome.
+ * Find the Chrome/Chromium executable on the current system.
+ *
+ * Resolution order:
+ *  1. `CHROME_PATH` environment variable
+ *  2. Well-known installation paths (macOS, Linux, Windows)
+ *  3. Binaries found on `PATH` via `which`
+ *
+ * Returns `undefined` when Chrome cannot be found.
  */
-export async function renderPdf(htmlPath: string, pdfPath: string): Promise<void> {
-  const chromePaths = [
+export function findChrome(): string | undefined {
+  // 1. Explicit override via environment variable
+  const envPath = process.env.CHROME_PATH;
+  if (envPath && existsSync(envPath)) return envPath;
+
+  // 2. Well-known installation paths
+  const staticPaths = [
+    // macOS
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    // Linux
     '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
+    // Windows
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   ];
+  const staticMatch = staticPaths.find((p) => existsSync(p));
+  if (staticMatch) return staticMatch;
 
-  const chromePath = chromePaths.find((p) => existsSync(p));
-  if (!chromePath) {
-    throw new Error('Google Chrome not found. Please install Chrome to enable automatic PDF generation.');
+  // 3. Search PATH
+  for (const bin of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'chrome']) {
+    const result = spawnSync('which', [bin], { encoding: 'utf8' });
+    if (result.status === 0) {
+      const found = result.stdout.trim();
+      if (found && existsSync(found)) return found;
+    }
   }
 
-  // Use headless mode to print to PDF.
-  // --print-to-pdf-no-header: removes the default browser header/footer
-  const cmd = `"${chromePath}" --headless --disable-gpu --print-to-pdf="${resolve(pdfPath)}" --print-to-pdf-no-header "file://${resolve(htmlPath)}"`;
+  return undefined;
+}
+
+/**
+ * Render an HTML file to PDF using puppeteer-core and the system Chrome/Chromium.
+ *
+ * Call with the `--pdf` flag from the tailor or huntr commands. PDF generation
+ * requires Chrome or Chromium to be installed — run `npm run setup` to check
+ * and install prerequisites.
+ *
+ * Set the `CHROME_PATH` environment variable to override the auto-detected binary.
+ */
+export async function renderPdf(htmlPath: string, pdfPath: string): Promise<void> {
+  const chromePath = findChrome();
+  if (!chromePath) {
+    throw new Error(
+      'Chrome/Chromium not found. Set the CHROME_PATH env var to your browser binary, ' +
+      'or run `npm run setup` to check and install prerequisites.',
+    );
+  }
+
+  const browser = await puppeteer.launch({
+    executablePath: chromePath,
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
 
   try {
-    execSync(cmd, { stdio: 'ignore' });
-  } catch (err) {
-    throw new Error(`Failed to generate PDF: ${err instanceof Error ? err.message : String(err)}`);
+    const page = await browser.newPage();
+    await page.goto(pathToFileURL(resolve(htmlPath)).href, { waitUntil: 'networkidle0' });
+    await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      printBackground: true,
+    });
+  } finally {
+    await browser.close();
   }
 }

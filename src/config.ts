@@ -156,7 +156,15 @@ export async function resolveHuntrToken(): Promise<string | undefined> {
 }
 
 export function loadConfig(): Config {
+  // Mirror the provider-priority order used by complete() so the correct
+  // provider-specific model env var is picked up when multiple providers
+  // are configured. Falls back to 'auto', which resolveModel() maps to the
+  // appropriate lite/default model for whichever provider is active.
   return {
-    model: process.env.ANTHROPIC_MODEL ?? process.env.OPENAI_MODEL ?? 'claude-sonnet-4-5',
+    model:
+      process.env.GEMINI_MODEL ??
+      process.env.OPENAI_MODEL ??
+      process.env.ANTHROPIC_MODEL ??
+      'auto',
   };
 }

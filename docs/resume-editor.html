@@ -238,7 +238,7 @@
   <h1>Resume Content Editor</h1>
   <p class="subtitle">Edit resume contents section by section. Preview updates live. Export as Markdown when done.</p>
 
-  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+  <div class="drop-zone" id="dropZone" tabindex="0" role="button" onclick="document.getElementById('fileInput').click()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('fileInput').click()}">
     Drop a resume .md file here or click to import
     <input type="file" id="fileInput" accept=".md,.txt" style="display:none" onchange="handleFile(this.files[0])">
   </div>
@@ -452,7 +452,6 @@ function inlineMd(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</stro
 // ── Date helpers ──
 
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTH_FULL = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function ensureDateObj(job) {
   if (!job.dateObj) {
@@ -763,7 +762,6 @@ function parseMarkdown(md) {
   let h2Count = 0;
   let currentSection = null;
   let currentJob = null;
-  let lastHeadingLevel = 0;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -782,7 +780,6 @@ function parseMarkdown(md) {
       if (h2Count === 1) {
         // First h2 is role
         parsed.role = trimmed.slice(3).trim();
-        lastHeadingLevel = 2;
         continue;
       }
 
@@ -816,7 +813,6 @@ function parseMarkdown(md) {
           bullets: [],
         };
         currentSection.jobs.push(currentJob);
-        lastHeadingLevel = 3;
       }
       continue;
     }
@@ -850,7 +846,7 @@ function parseMarkdown(md) {
     }
 
     // Date line (after h3, starts with year or contains year range)
-    if (currentJob && !currentJob.date && trimmed && /^\d{4}/.test(trimmed)) {
+    if (currentJob && !currentJob.date && trimmed && (/^\d{4}/.test(trimmed) || /^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}/i.test(trimmed))) {
       currentJob.date = trimmed;
       continue;
     }

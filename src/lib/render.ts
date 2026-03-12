@@ -52,16 +52,29 @@ function linkifyContactSegment(segment: string): string {
 }
 
 function normalizeContactLinks(markdown: string): string {
-  return markdown
-    .split('\n')
-    .map((line) => {
-      if (!line.includes('|')) return line;
-      return line
-        .split('|')
-        .map((segment) => linkifyContactSegment(segment))
-        .join(' | ');
-    })
-    .join('\n');
+  const lines = markdown.split('\n');
+  let inBody = false;
+
+  const processed = lines.map((line) => {
+    const trimmed = line.trim();
+
+    // Once we hit the first level-2 heading, treat everything as body content
+    // and avoid auto-linkifying pipe-separated segments.
+    if (!inBody && trimmed.startsWith('##')) {
+      inBody = true;
+    }
+
+    if (inBody || !line.includes('|')) {
+      return line;
+    }
+
+    return line
+      .split('|')
+      .map((segment) => linkifyContactSegment(segment))
+      .join(' | ');
+  });
+
+  return processed.join('\n');
 }
 
 /**

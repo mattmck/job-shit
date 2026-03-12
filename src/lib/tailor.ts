@@ -8,8 +8,8 @@ import {
 import { TailorInput, TailorOutput } from '../types/index.js';
 
 /**
- * Generate a tailored resume AND cover letter in parallel.
- * Returns both strings once both API calls complete.
+ * Generate a tailored resume then cover letter (serially).
+ * Serial execution avoids simultaneous 429s fighting over the retry spinner.
  */
 export async function tailorDocuments(
   model: string,
@@ -17,11 +17,8 @@ export async function tailorDocuments(
   verbose = false,
   complete = defaultComplete,
 ): Promise<TailorOutput> {
-  const [resume, coverLetter] = await Promise.all([
-    complete(model, resumeSystemPrompt(), resumeUserPrompt(input), verbose),
-    complete(model, coverLetterSystemPrompt(), coverLetterUserPrompt(input), verbose),
-  ]);
-
+  const resume = await complete(model, resumeSystemPrompt(), resumeUserPrompt(input), verbose);
+  const coverLetter = await complete(model, coverLetterSystemPrompt(), coverLetterUserPrompt(input), verbose);
   return { resume, coverLetter };
 }
 

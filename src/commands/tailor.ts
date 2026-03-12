@@ -32,7 +32,7 @@ export function registerTailorCommand(program: Command): void {
     .option('-t, --title <title>', 'Job title (inferred from JD if omitted)')
     .option('-o, --output <dir>', 'Output directory', 'output')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
-    .option('-m, --model <model>', 'AI model to use (overrides ANTHROPIC_MODEL / OPENAI_MODEL env vars)')
+    .option('-m, --model <model>', 'Model/deployment name (e.g. gpt-4o, claude-opus-4-5). Default: auto — uses provider default')
     .option('--pdf', 'Generate PDF output (requires Chrome — run `npm run setup` first)')
     .action(async (opts: {
       company: string;

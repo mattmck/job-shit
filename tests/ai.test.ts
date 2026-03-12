@@ -178,29 +178,7 @@ describe('provider selection', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('model alias resolution', () => {
-  it('resolves "haiku" → Anthropic default (claude-haiku-4-5-20251001)', async () => {
-    process.env.ANTHROPIC_API_KEY = 'anthropic-key';
-    mockMessagesCreate.mockResolvedValueOnce(anthropicOk('ok'));
-
-    await complete('haiku', 'sys', 'user');
-
-    expect(mockMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-haiku-4-5-20251001' }),
-    );
-  });
-
-  it('resolves "sonnet" → Anthropic provider default (all aliases map to providerDefault)', async () => {
-    process.env.ANTHROPIC_API_KEY = 'anthropic-key';
-    mockMessagesCreate.mockResolvedValueOnce(anthropicOk('ok'));
-
-    await complete('sonnet', 'sys', 'user');
-
-    expect(mockMessagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-haiku-4-5-20251001' }),
-    );
-  });
-
-  it('resolves "auto" → OpenAI default (gpt-4o-mini)', async () => {
+  it('resolves "auto" → OpenAI provider default (gpt-4o-mini)', async () => {
     process.env.OPENAI_API_KEY = 'openai-key';
     mockChatCreate.mockResolvedValueOnce(openaiOk('ok'));
 
@@ -211,25 +189,14 @@ describe('model alias resolution', () => {
     );
   });
 
-  it('resolves "mini" → OpenAI default (gpt-4o-mini)', async () => {
-    process.env.OPENAI_API_KEY = 'openai-key';
-    mockChatCreate.mockResolvedValueOnce(openaiOk('ok'));
+  it('resolves "default" → Anthropic provider default (claude-haiku-4-5-20251001)', async () => {
+    process.env.ANTHROPIC_API_KEY = 'anthropic-key';
+    mockMessagesCreate.mockResolvedValueOnce(anthropicOk('ok'));
 
-    await complete('mini', 'sys', 'user');
+    await complete('default', 'sys', 'user');
 
-    expect(mockChatCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-4o-mini' }),
-    );
-  });
-
-  it('resolves "flash" → Gemini default (gemini-2.0-flash-lite)', async () => {
-    process.env.GEMINI_API_KEY = 'gemini-key';
-    mockChatCreate.mockResolvedValueOnce(openaiOk('ok'));
-
-    await complete('flash', 'sys', 'user');
-
-    expect(mockChatCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gemini-2.0-flash-lite' }),
+    expect(mockMessagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'claude-haiku-4-5-20251001' }),
     );
   });
 

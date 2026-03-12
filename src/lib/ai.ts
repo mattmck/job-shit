@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
  * If the hint already looks like a real model ID, pass it through.
  */
 function resolveModel(hint: string, providerDefault: string): string {
-  const abstracts = new Set(['haiku', 'sonnet', 'opus', 'flash', 'mini', 'auto', 'default']);
+  const abstracts = new Set(['auto', 'default']);
   return abstracts.has(hint.toLowerCase()) ? providerDefault : hint;
 }
 

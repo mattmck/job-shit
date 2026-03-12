@@ -369,7 +369,7 @@ export function registerHuntrCommand(program: Command): void {
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-o, --output <dir>', 'Output directory', 'output')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
-    .option('-m, --model <model>', 'AI model to use (overrides env vars)')
+    .option('-m, --model <model>', 'Model/deployment name (e.g. gpt-4o, claude-opus-4-5). Default: auto — uses provider default')
     .option('--pdf', 'Generate PDF output (requires Chrome — run `npm run setup` first)')
     .action(async (jobId: string, opts: {
       board?: string;
@@ -430,7 +430,7 @@ export function registerHuntrCommand(program: Command): void {
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-o, --output <dir>', 'Output directory', 'output')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
-    .option('-m, --model <model>', 'AI model to use (overrides env vars)')
+    .option('-m, --model <model>', 'Model/deployment name (e.g. gpt-4o, claude-opus-4-5). Default: auto — uses provider default')
     .option('--pdf', 'Generate PDF output (requires Chrome — run `npm run setup` first)')
     .action(async (opts: {
       board?: string;

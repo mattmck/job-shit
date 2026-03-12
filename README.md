@@ -63,9 +63,10 @@ job-shit tailor \
 ```
 
 Outputs (written to `output/`, gitignored):
-- `resume-acme-corp.md` / `.html` / `.pdf`
-- `cover-letter-acme-corp.md` / `.html` / `.pdf`
+- `resume-<slug>.md` / `.html` / `.pdf`
+- `cover-letter-<slug>.md` / `.html` / `.pdf`
 
+`<slug>` is a date-prefixed, URL-safe identifier derived from the job (for example, including the date plus normalized title and job ID parts).
 PDF generation requires Google Chrome installed.
 
 ### Base files

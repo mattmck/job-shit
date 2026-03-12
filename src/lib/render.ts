@@ -65,8 +65,6 @@ function normalizeContactLinks(markdown: string): string {
 
 /**
  * Strip dangerous HTML from Marked output using an allowlist-based sanitizer.
- * Only the tags our custom renderer emits are allowed; attributes are restricted
- * to href on <a> and the semantic CSS classes emitted by makeRenderer().
  */
 function sanitizeHtml(html: string): string {
   return sanitizeHtmlLib(html, {
@@ -85,13 +83,7 @@ function sanitizeHtml(html: string): string {
 // Renderer
 // ---------------------------------------------------------------------------
 
-/**
- * Build a custom marked Renderer with stateful class injection.
- * Tracks position in the document (header area, h3 context) to apply
- * semantic CSS classes that drive the typographic hierarchy.
- */
 function makeRenderer() {
-  // State shared across renderer calls (in document order)
   const state = {
     prevToken: '',
     h2Count: 0,
@@ -120,14 +112,13 @@ function makeRenderer() {
       if (depth === 2) {
         const isRole = state.h2Count === 0;
         state.h2Count++;
-        // If we are starting a new major section (Summary, Experience, etc.), close any open job-section
         prefix = closeJobSection();
+        state.inJobSection = true;
         state.prevToken = isRole ? 'role-h2' : 'section-h2';
-        return `${prefix}<h2 class="${isRole ? 'role' : 'section'}">${inline}</h2>\n`;
+        return `${prefix}<div class="job-section">\n<h2 class="${isRole ? 'role' : 'section'}">${inline}</h2>\n`;
       }
       
       if (depth === 3) {
-        // Close previous job section before starting a new one
         prefix = closeJobSection();
         state.inJobSection = true;
         state.prevToken = 'h3';
@@ -172,8 +163,8 @@ const CSS = `
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: #f0fbff;
-    color: #111;
+    background: #B7CCE0;
+    color: #323434;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -182,7 +173,7 @@ const CSS = `
     max-width: 760px;
     margin: 0 auto;
     padding: 40px 54px;
-    background: #f0fbff;
+    background: #B7CCE0;
   }
 
   .job-section {
@@ -190,118 +181,41 @@ const CSS = `
     page-break-inside: avoid;
   }
 
-  /* ── Name ─────────────────────────────────────── */
+  /* ── Typography ───────────────────────────────── */
 
-  h1 {
-    font-size: 23px;
-    font-weight: 700;
-    color: #1a6bb0;
-    line-height: 1.1;
-    margin-bottom: 3px;
-  }
-
-  /* ── Role subtitle ────────────────────────────── */
-
-  h2.role {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0;
-    text-transform: none;
-    color: #3f4756;
-    margin-bottom: 7px;
-  }
-
-  /* ── Contact / Links ──────────────────────────── */
-
-  p.contact {
-    font-size: 11px;
-    color: #333;
-    line-height: 1.4;
-    margin-bottom: 2px;
-  }
-
-  p.links {
-    font-size: 11px;
-    color: #333;
-    line-height: 1.4;
-    margin-bottom: 16px;
-  }
-
-  p.contact a, p.links a { color: #1a6bb0; }
-
-  /* ── Section headers ──────────────────────────── */
-
-  h2.section {
-    font-size: 13.5px;
-    font-weight: 700;
-    letter-spacing: 0;
-    text-transform: none;
-    color: #3f4756;
-    margin-top: 14px;
-    margin-bottom: 4px;
-  }
-
-  /* ── Job / entry titles ───────────────────────── */
-
-  h3 {
-    font-size: 11.5px;
-    font-weight: 700;
-    color: #708090;
-    line-height: 1.3;
-    margin-top: 10px;
-    margin-bottom: 1px;
-  }
-
+  h1 { font-size: 23px; font-weight: 700; color: #BE503C; line-height: 1.1; margin-bottom: 3px; }
+  h2.role { font-size: 14px; font-weight: 700; color: #364D62; margin-bottom: 7px; }
+  p.contact, p.links { font-size: 11px; color: #323434; line-height: 1.4; }
+  p.links { margin-bottom: 16px; }
+  p.contact a, p.links a { color: #255F91; }
+  h2.section { font-size: 13.5px; font-weight: 700; color: #BE503C; margin-top: 14px; margin-bottom: 4px; }
+  h3 { font-size: 11.5px; font-weight: 700; color: #182234; line-height: 1.3; margin-top: 10px; margin-bottom: 1px; }
   h2.section + .job-section h3, h2.section + h3 { margin-top: 4px; }
-
-  /* ── Dates ────────────────────────────────────── */
-
-  p.date {
-    font-size: 11px;
-    color: #444;
-    line-height: 1.3;
-    margin-bottom: 4px;
-  }
-
-  /* ── Bullet lists ─────────────────────────────── */
-
-  ul { list-style: disc; padding-left: 16px; margin: 0 0 2px 0; }
-
-  li {
-    font-size: 11px;
-    line-height: 1.5;
-    color: #111;
-    padding-left: 1px;
-    margin-bottom: 1px;
-  }
-
-  li:last-child { margin-bottom: 0; }
-
-  /* ── Body text ────────────────────────────────── */
-
-  p {
-    font-size: 11px;
-    line-height: 1.5;
-    color: #111;
-    margin-bottom: 3px;
-  }
-
-  /* ── Links ────────────────────────────────────── */
-
-  a { color: #1a6bb0; text-decoration: none; }
+  p.date { font-size: 11px; color: #3B72A8; line-height: 1.3; margin-bottom: 4px; }
+  ul { list-style: disc; padding-left: 16px; margin: 0 0 2px 0; color: #323434; }
+  li, p { font-size: 11px; line-height: 1.5; color: #323434; margin-bottom: 3px; }
+  a { color: #255F91; text-decoration: none; }
 
   /* ── Print ────────────────────────────────────── */
 
   @media print {
+    @page { size: letter portrait; }
+    body { background: white; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .resume { padding: 0; max-width: 100%; }
+    
     @page {
-      margin: 0;
+      margin: 1cm;
       size: letter portrait;
+      background-color: #B7CCE0;
+      background: #B7CCE0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    html { margin: 0; padding: 0; }
+    html { padding: 0; background-color: #B7CCE0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body {
       margin: 0;
-      padding: 1cm;
-      background-color: #f0fbff !important;
+      padding: 0;
+      background-color: #B7CCE0 !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -324,12 +238,11 @@ const CSS = `
 
 /**
  * Convert a tailored resume (markdown) to a styled, print-ready HTML string.
- * Open the file in Chrome and Cmd+P → Save as PDF.
  */
 export function renderResumeHtml(markdown: string, pageTitle = 'Matthew McKnight - Resume'): string {
   const cleaned = markdown
-    .replace(/<!--[\s\S]*?-->/g, '')   // strip AI-only HTML comments
-    .replace(/^• /gm, '- ')            // convert bullet chars to markdown list items
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^• /gm, '- ')
     .trim();
   const normalized = normalizeContactLinks(cleaned);
 
@@ -337,7 +250,7 @@ export function renderResumeHtml(markdown: string, pageTitle = 'Matthew McKnight
   const m = new Marked({ renderer: renderer as any });
   let body = sanitizeHtml(m.parse(normalized) as string);
   
-  // Close the last job section if one was open
+  // Close any open job-section wrapper
   body += closeJobSection();
 
   const safeTitle = escapeHtml(pageTitle);
@@ -382,7 +295,7 @@ export function renderCoverLetterHtml(markdown: string, pageTitle = 'Matthew McK
       font-size: 13px;
       line-height: 1.6;
       margin-bottom: 20px;
-      color: #3f4756;
+      color: #323434;
     }
     @media print {
       body {
@@ -405,7 +318,6 @@ ${body.trim().split('\n').map(l => `    ${l}`).join('\n')}
 
 /**
  * Use the system's Google Chrome to render an HTML file to PDF.
- * This ensures the background and layout exactly match what the user sees in Chrome.
  */
 export async function renderPdf(htmlPath: string, pdfPath: string): Promise<void> {
   const chromePaths = [
@@ -416,12 +328,10 @@ export async function renderPdf(htmlPath: string, pdfPath: string): Promise<void
 
   const chromePath = chromePaths.find((p) => existsSync(p));
   if (!chromePath) {
-    throw new Error('Google Chrome not found. Please install Chrome to enable automatic PDF generation.');
+    throw new Error('Google Chrome not found.');
   }
 
-  // Use headless mode to print to PDF.
-  // --print-to-pdf-no-header: removes the default browser header/footer
-  const cmd = `"${chromePath}" --headless --disable-gpu --print-to-pdf="${resolve(pdfPath)}" --print-to-pdf-no-header "file://${resolve(htmlPath)}"`;
+  const cmd = `"${chromePath}" --headless --disable-gpu --print-to-pdf="${resolve(pdfPath)}" --print-to-pdf-no-header --no-pdf-header-footer "file://${resolve(htmlPath)}"`;
 
   try {
     execSync(cmd, { stdio: 'ignore' });

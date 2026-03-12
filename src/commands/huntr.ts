@@ -577,9 +577,8 @@ async function tailorAndWrite(args: {
 
   if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 
-  const datePrefix = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const slugParts = [companyName, job.title, job.id].filter(Boolean).join(' ');
-  const slug = `${datePrefix}-${slugify(slugParts)}`;
+  const slug = slugify(slugParts);
   const resumeOut = join(outputDir, `resume-${slug}.md`);
   const coverLetterOut = join(outputDir, `cover-letter-${slug}.md`);
 

@@ -1,5 +1,6 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { existsSync } from 'fs';
 import { Marked } from 'marked';
 import sanitizeHtmlLib from 'sanitize-html';
@@ -334,10 +335,19 @@ export async function renderPdf(htmlPath: string, pdfPath: string): Promise<void
     throw new Error('Google Chrome not found.');
   }
 
-  const cmd = `"${chromePath}" --headless --disable-gpu --print-to-pdf="${resolve(pdfPath)}" --print-to-pdf-no-header --no-pdf-header-footer "file://${resolve(htmlPath)}"`;
-
   try {
-    execSync(cmd, { stdio: 'ignore' });
+    execFileSync(
+      chromePath,
+      [
+        '--headless',
+        '--disable-gpu',
+        `--print-to-pdf=${resolve(pdfPath)}`,
+        '--print-to-pdf-no-header',
+        '--no-pdf-header-footer',
+        pathToFileURL(resolve(htmlPath)).href,
+      ],
+      { stdio: 'ignore' }
+    );
   } catch (err) {
     throw new Error(`Failed to generate PDF: ${err instanceof Error ? err.message : String(err)}`);
   }

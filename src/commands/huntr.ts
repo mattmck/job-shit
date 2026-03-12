@@ -116,6 +116,7 @@ function slugify(text: string): string {
 const JOB_BOARD_DOMAINS = new Set([
   'linkedin.com', 'indeed.com', 'glassdoor.com', 'ziprecruiter.com',
   'dice.com', 'monster.com', 'simplyhired.com', 'careerbuilder.com',
+  'greenhouse.io', 'boards.greenhouse.io', 'lever.co', 'jobs.lever.co',
 ]);
 
 /**
@@ -177,14 +178,22 @@ function extractCompanyName(job: HuntrJob): string {
     try {
       const url = new URL(job.url);
       const hostname = url.hostname.replace(/^www\./, '');
-      
-      // If it's not a job board, the hostname is likely the company
+
+      // Greenhouse/Lever board URLs carry the company slug in the path
+      // e.g. boards.greenhouse.io/<company>/jobs/... or jobs.lever.co/<company>/...
+      if (hostname === 'boards.greenhouse.io' || hostname === 'jobs.lever.co') {
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0) return decodeURIComponent(pathParts[0]);
+      }
+
+      // Company-specific Greenhouse/Lever subdomains (e.g. acme.greenhouse.io)
+      if (hostname.endsWith('.greenhouse.io') || hostname.endsWith('.lever.co')) {
+        const subdomain = hostname.split('.')[0];
+        if (subdomain) return subdomain;
+      }
+
+      // If it's not a known job board, the hostname likely belongs to the company
       if (!JOB_BOARD_DOMAINS.has(hostname)) {
-        // Handle greenhouse/lever specific board names
-        if (hostname.includes('greenhouse.io') || hostname.includes('lever.co')) {
-          const parts = hostname.split('.');
-          if (parts.length > 2) return parts[0];
-        }
         return hostname;
       }
     } catch { /* fall through */ }
@@ -359,6 +368,8 @@ export function registerHuntrCommand(program: Command): void {
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-o, --output <dir>', 'Output directory', 'output')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
+    .option('-m, --model <model>', 'AI model to use (overrides env vars)')
+    .option('--pdf', 'Generate PDF output (requires Chrome — run `npm run setup` first)')
     .action(async (jobId: string, opts: {
       board?: string;
       resume?: string;
@@ -366,6 +377,8 @@ export function registerHuntrCommand(program: Command): void {
       supplemental?: string;
       output: string;
       verbose?: boolean;
+      model?: string;
+      pdf?: boolean;
     }) => {
       const token = await requireHuntrToken();
       const client = createHuntrClient(token);
@@ -394,8 +407,9 @@ export function registerHuntrCommand(program: Command): void {
       if (supplementalPath) console.log(`Using supplemental: ${supplementalPath}`);
 
       const config = loadConfig();
+      const model = opts.model ?? config.model;
 
-      await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, verbose: opts.verbose });
+      await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir: opts.output, verbose: opts.verbose, pdf: opts.pdf });
     });
 
   // huntr tailor-all — tailor every wishlist job at once
@@ -414,6 +428,8 @@ export function registerHuntrCommand(program: Command): void {
     .option('-s, --supplemental <file>', 'Supplemental resume file (markdown). Auto-detected if omitted.')
     .option('-o, --output <dir>', 'Output directory', 'output')
     .option('-v, --verbose', 'Show per-call AI logging (model, prompt sizes, timing)')
+    .option('-m, --model <model>', 'AI model to use (overrides env vars)')
+    .option('--pdf', 'Generate PDF output (requires Chrome — run `npm run setup` first)')
     .action(async (opts: {
       board?: string;
       resume?: string;
@@ -421,6 +437,8 @@ export function registerHuntrCommand(program: Command): void {
       supplemental?: string;
       output: string;
       verbose?: boolean;
+      model?: string;
+      pdf?: boolean;
     }) => {
       const token = await requireHuntrToken();
       const client = createHuntrClient(token);
@@ -452,12 +470,13 @@ export function registerHuntrCommand(program: Command): void {
       console.log(`Found ${wishlistJobs.length} wishlist job(s). Tailoring...\n`);
 
       const config = loadConfig();
+      const model = opts.model ?? config.model;
 
       let done = 0;
       let failed = 0;
       for (const job of wishlistJobs) {
         try {
-          await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model: config.model, outputDir: opts.output, verbose: opts.verbose });
+          await tailorAndWrite({ job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir: opts.output, verbose: opts.verbose, pdf: opts.pdf });
           done++;
         } catch (err) {
           failed++;
@@ -527,8 +546,9 @@ async function tailorAndWrite(args: {
   model: string;
   outputDir: string;
   verbose?: boolean;
+  pdf?: boolean;
 }): Promise<void> {
-  const { job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir, verbose = false } = args;
+  const { job, resume, bio, baseCoverLetter, resumeSupplemental, model, outputDir, verbose = false, pdf = false } = args;
   const companyName = extractCompanyName(job);
   const jobDescription = job.htmlDescription
     ? stripHtml(job.htmlDescription)
@@ -563,21 +583,31 @@ async function tailorAndWrite(args: {
   writeFileSync(coverLetterOut, output.coverLetter, 'utf8');
 
   const resumeHtmlOut = join(outputDir, `resume-${slug}.html`);
-  writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Matthew McKnight - Resume - ${companyName}`), 'utf8');
-
-  const resumePdfOut = join(outputDir, `resume-${slug}.pdf`);
-  await renderPdf(resumeHtmlOut, resumePdfOut);
+  writeFileSync(resumeHtmlOut, renderResumeHtml(output.resume, `Resume - ${companyName}`), 'utf8');
 
   const coverLetterHtmlOut = join(outputDir, `cover-letter-${slug}.html`);
-  writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Matthew McKnight - Cover Letter - ${companyName}`), 'utf8');
-
-  const coverLetterPdfOut = join(outputDir, `cover-letter-${slug}.pdf`);
-  await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);
+  writeFileSync(coverLetterHtmlOut, renderCoverLetterHtml(output.coverLetter, `Cover Letter - ${companyName}`), 'utf8');
 
   console.log(`    ✓ resume       → ${resumeOut}`);
   console.log(`    ✓ resume (html)→ ${resumeHtmlOut}`);
-  console.log(`    ✓ resume (pdf) → ${resumePdfOut}`);
   console.log(`    ✓ cover letter → ${coverLetterOut}`);
   console.log(`    ✓ cl (html)    → ${coverLetterHtmlOut}`);
-  console.log(`    ✓ cl (pdf)     → ${coverLetterPdfOut}`);
+
+  if (pdf) {
+    const resumePdfOut = join(outputDir, `resume-${slug}.pdf`);
+    try {
+      await renderPdf(resumeHtmlOut, resumePdfOut);
+      console.log(`    ✓ resume (pdf) → ${resumePdfOut}`);
+    } catch (err) {
+      console.warn(`    ⚠ PDF generation skipped: ${(err as Error).message}`);
+    }
+
+    const coverLetterPdfOut = join(outputDir, `cover-letter-${slug}.pdf`);
+    try {
+      await renderPdf(coverLetterHtmlOut, coverLetterPdfOut);
+      console.log(`    ✓ cl (pdf)     → ${coverLetterPdfOut}`);
+    } catch (err) {
+      console.warn(`    ⚠ PDF generation skipped: ${(err as Error).message}`);
+    }
+  }
 }

@@ -489,6 +489,9 @@ async function tailorAndWrite(args: {
 
   console.log(`🎯  ${job.title} @ ${companyName}`);
 
+  if (!process.stdout.isTTY) {
+    console.log('    Generating tailored resume and cover letter...');
+  }
   const output = await withSpinner('generating', () => tailorDocuments(aiClient, model, {
     resume,
     bio,

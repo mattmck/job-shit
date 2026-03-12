@@ -536,7 +536,13 @@ function resolveBaseFiles(
   try {
     supplementalPath = findFile({ explicit: explicitSupplemental, prefix: 'resume-supplemental', label: 'Resume supplemental' });
     resumeSupplemental = readFile(supplementalPath);
-  } catch { /* optional */ }
+  } catch (err) {
+    if (explicitSupplemental) {
+      console.error(`Error: ${(err as Error).message}`);
+      process.exit(1);
+    }
+    // optional if not explicitly provided
+  }
 
   return { resume: readFile(resumePath), bio: readFile(bioPath), baseCoverLetter, resumeSupplemental, resumePath, bioPath, supplementalPath };
 }

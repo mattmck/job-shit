@@ -241,8 +241,13 @@ const CSS = `
  * Convert a tailored resume (markdown) to a styled, print-ready HTML string.
  */
 export function renderResumeHtml(markdown: string, pageTitle = 'Matthew McKnight - Resume'): string {
-  const cleaned = markdown
-    .replace(/<!--[\s\S]*?-->/g, '')
+  let cleaned = markdown;
+  let previous: string;
+  do {
+    previous = cleaned;
+    cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+  } while (cleaned !== previous);
+  cleaned = cleaned
     .replace(/^• /gm, '- ')
     .trim();
   const normalized = normalizeContactLinks(cleaned);

@@ -2,6 +2,23 @@ import OpenAI, { AzureOpenAI } from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { startRetrySpinner } from './spinner.js';
 
+export function createAnthropicClient(
+  options?: ConstructorParameters<typeof Anthropic>[0],
+): Anthropic {
+  if (options) {
+    return new Anthropic(options);
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      'Missing ANTHROPIC_API_KEY (or OPENAI_API_KEY) environment variable for Anthropic client',
+    );
+  }
+
+  return new Anthropic({ apiKey });
+}
+
 /**
  * Resolve an abstract model alias to a provider-specific model ID.
  * If the hint already looks like a real model ID, pass it through.

@@ -65,7 +65,8 @@ function normalizeContactLinks(markdown: string): string {
     // The first ## is the role subtitle; contact/links follow it.
     // Only treat content as body (and skip linkification) once we hit
     // the second ## (the first real section heading).
-    if (trimmed.startsWith('##')) {
+    // Use /^## / so that ### headings don't increment h2Count.
+    if (/^## /.test(trimmed)) {
       h2Count++;
     }
 

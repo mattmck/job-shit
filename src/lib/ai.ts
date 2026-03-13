@@ -127,28 +127,7 @@ export async function complete(
   userPrompt: string,
   verboseArg?: boolean,
 ): Promise<string> {
-  // Signature: complete(model, systemPrompt, userPrompt, verbose?)
   const verbose = verboseArg ?? false;
-
-  // Existing implementation below should continue to use `model`,
-  // `systemPrompt`, `userPrompt`, and `verbose` as before.
-  const userPromptOrVerbose = userPrompt;
-  const systemPromptOrUserPrompt = systemPrompt;
-  const modelOrSystemPrompt = model;
-  const clientOrModel = model;
-  const usingInjectedClient = false;
-
-  const resolvedModel = usingInjectedClient
-    ? modelOrSystemPrompt
-    : (clientOrModel as string);
-
-  const resolvedSystemPrompt = usingInjectedClient
-    ? (typeof userPromptOrVerbose === 'string' ? userPromptOrVerbose : '')
-    : systemPromptOrUserPrompt;
-
-  const verbose = usingInjectedClient
-    ? (typeof verboseArg === 'boolean' ? verboseArg : false)
-    : (typeof userPromptOrVerbose === 'boolean' ? userPromptOrVerbose : false);
 
   // ── 1. Gemini ───────────────────────────────────────────────────────────
   if (process.env.GEMINI_API_KEY) {

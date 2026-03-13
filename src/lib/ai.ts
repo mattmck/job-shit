@@ -122,27 +122,27 @@ export function describeProvider(model: string): string {
  *   4. ANTHROPIC_API_KEY                            → Anthropic Claude (claude-haiku-4-5)
  */
 export async function complete(
-  clientOrModel: Anthropic | OpenAI | AzureOpenAI | string,
-  modelOrSystemPrompt: string,
-  systemPromptOrUserPrompt: string,
-  userPromptOrVerbose?: string | boolean,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
   verboseArg?: boolean,
 ): Promise<string> {
-  // Support both legacy signature:
-  //   complete(client, model, systemPrompt, userPrompt, verbose?)
-  // and new signature:
-  //   complete(model, systemPrompt, userPrompt, verbose?)
-  const usingInjectedClient = typeof clientOrModel !== 'string';
+  // Signature: complete(model, systemPrompt, userPrompt, verbose?)
+  const verbose = verboseArg ?? false;
 
-  const model = usingInjectedClient
+  // Existing implementation below should continue to use `model`,
+  // `systemPrompt`, `userPrompt`, and `verbose` as before.
+  const userPromptOrVerbose = userPrompt;
+  const systemPromptOrUserPrompt = systemPrompt;
+  const modelOrSystemPrompt = model;
+  const clientOrModel = model;
+  const usingInjectedClient = false;
+
+  const resolvedModel = usingInjectedClient
     ? modelOrSystemPrompt
     : (clientOrModel as string);
 
-  const systemPrompt = usingInjectedClient
-    ? systemPromptOrUserPrompt
-    : modelOrSystemPrompt;
-
-  const userPrompt = usingInjectedClient
+  const resolvedSystemPrompt = usingInjectedClient
     ? (typeof userPromptOrVerbose === 'string' ? userPromptOrVerbose : '')
     : systemPromptOrUserPrompt;
 

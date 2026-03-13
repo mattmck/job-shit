@@ -7,7 +7,7 @@
     "job-shit": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && cp -r src/templates dist/templates",
+    "build": "tsc && node -e \"require('fs').cpSync('src/templates','dist/templates',{ recursive: true });\"",
     "dev": "tsx src/cli.ts",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",

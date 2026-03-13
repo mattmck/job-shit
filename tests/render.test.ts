@@ -107,3 +107,62 @@ describe('renderResumeHtml', () => {
     expect(html).toContain('<title>Resume</title>');
   });
 });
+
+describe('normalizeContactLinks / isUrlLike', () => {
+  // Build a minimal resume with a controlled contact line so we can test
+  // linkification without the rest of the rendering noise.
+  function contactHtml(contactLine: string): string {
+    return renderResumeHtml(
+      `# Test Person\n## Engineer\n\n${contactLine}\n\n## Summary\n\nSome text.`,
+    );
+  }
+
+  it('linkifies bare https:// URLs in the contact area', () => {
+    const html = contactHtml('https://example.com/foo');
+    expect(html).toContain('<a href="https://example.com/foo">https://example.com/foo</a>');
+  });
+
+  it('linkifies www. URLs in the contact area', () => {
+    // Must include a pipe so normalizeContactLinks processes the line
+    const html = contactHtml('www.example.com/in/janedoe | (555) 123-4567');
+    expect(html).toContain('<a href="https://www.example.com/in/janedoe">www.example.com/in/janedoe</a>');
+  });
+
+  it('linkifies bare domain/path URLs in the contact area', () => {
+    const html = contactHtml('linkedin.com/in/janedoe | github.com/janedoe');
+    expect(html).toContain('<a href="https://linkedin.com/in/janedoe">linkedin.com/in/janedoe</a>');
+  });
+
+  it('does NOT linkify bare dotted identifiers like Node.js', () => {
+    const html = contactHtml('Node.js | react');
+    expect(html).not.toContain('<a href');
+  });
+
+  it('does NOT linkify pipe-separated content after the second ## heading', () => {
+    // The "Skills" section has pipes but should not be linkified.
+    const html = renderResumeHtml(
+      `# Dev\n## Engineer\n\ngithub.com/dev | more\n\n## Summary\n\nText.\n\n## Skills\n\nNode.js | React | Go`,
+    );
+    // Inside the Skills section, pipes should be literal — not linkified
+    expect(html).not.toMatch(/Skills[\s\S]*?<a href/);
+  });
+
+  it('does NOT count ### headings toward the h2 stop-linkify threshold', () => {
+    // If ### incorrectly incremented h2Count, linkification would stop
+    // too early and the contact link below would not be wrapped in <a>.
+    const md = [
+      '# Dev',
+      '## Engineer',
+      '',
+      '### note',                       // h3 — must NOT increment h2Count
+      '',
+      'github.com/dev | (555) 123-4567', // should still be linkified (h2Count still 1)
+      '',
+      '## Summary',
+      '',
+      'Text.',
+    ].join('\n');
+    const html = renderResumeHtml(md);
+    expect(html).toContain('<a href="https://github.com/dev">github.com/dev</a>');
+  });
+});

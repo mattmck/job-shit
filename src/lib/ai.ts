@@ -2,6 +2,23 @@ import OpenAI, { AzureOpenAI } from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { startRetrySpinner } from './spinner.js';
 
+export function createAnthropicClient(
+  options?: ConstructorParameters<typeof Anthropic>[0],
+): Anthropic {
+  if (options) {
+    return new Anthropic(options);
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      'Missing ANTHROPIC_API_KEY (or OPENAI_API_KEY) environment variable for Anthropic client',
+    );
+  }
+
+  return new Anthropic({ apiKey });
+}
+
 /**
  * Resolve an abstract model alias to a provider-specific model ID.
  * If the hint already looks like a real model ID, pass it through.
@@ -108,8 +125,30 @@ export async function complete(
   model: string,
   systemPrompt: string,
   userPrompt: string,
-  verbose = false,
+  verboseArg?: boolean,
 ): Promise<string> {
+  // Signature: complete(model, systemPrompt, userPrompt, verbose?)
+  const verbose = verboseArg ?? false;
+
+  // Existing implementation below should continue to use `model`,
+  // `systemPrompt`, `userPrompt`, and `verbose` as before.
+  const userPromptOrVerbose = userPrompt;
+  const systemPromptOrUserPrompt = systemPrompt;
+  const modelOrSystemPrompt = model;
+  const clientOrModel = model;
+  const usingInjectedClient = false;
+
+  const resolvedModel = usingInjectedClient
+    ? modelOrSystemPrompt
+    : (clientOrModel as string);
+
+  const resolvedSystemPrompt = usingInjectedClient
+    ? (typeof userPromptOrVerbose === 'string' ? userPromptOrVerbose : '')
+    : systemPromptOrUserPrompt;
+
+  const verbose = usingInjectedClient
+    ? (typeof verboseArg === 'boolean' ? verboseArg : false)
+    : (typeof userPromptOrVerbose === 'boolean' ? userPromptOrVerbose : false);
 
   // ── 1. Gemini ───────────────────────────────────────────────────────────
   if (process.env.GEMINI_API_KEY) {

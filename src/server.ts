@@ -311,11 +311,22 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
 
   if (method === 'GET' && url.pathname === '/api/files/check') {
     const filePath = url.searchParams.get('path');
-    if (!filePath || !existsSync(filePath)) {
+    if (!filePath) {
+      sendJson(res, 400, { error: 'Missing path parameter.' });
+      return;
+    }
+    const resolved = resolve(filePath);
+    const cwd = process.cwd();
+    const home = join(homedir(), '.job-shit');
+    if (!resolved.startsWith(cwd) && !resolved.startsWith(home)) {
+      sendJson(res, 403, { error: 'Path not allowed.' });
+      return;
+    }
+    if (!existsSync(resolved)) {
       sendJson(res, 200, { exists: false });
       return;
     }
-    const stat = statSync(filePath);
+    const stat = statSync(resolved);
     sendJson(res, 200, { exists: true, mtime: stat.mtime.toISOString(), size: stat.size });
     return;
   }

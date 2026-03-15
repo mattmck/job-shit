@@ -1225,6 +1225,7 @@
       to { transform: rotate(360deg); }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <!-- ═══ TOP BAR ═══ -->
@@ -2753,10 +2754,14 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
         const reader = new FileReader();
         reader.onload = () => {
           const md = reader.result;
+          const markdown = typeof md === 'string' ? md : String(md || '');
           const jobId = state.selectedHuntrJob?.id || '_manual';
+          const resumeHtml = typeof marked !== 'undefined'
+            ? marked.parse(markdown)
+            : markdown;
           const fakeResult = {
-            output: { resume: md, coverLetter: '' },
-            artifacts: { resumeHtml: '', coverLetterHtml: '' },
+            output: { resume: markdown, coverLetter: '' },
+            artifacts: { resumeHtml, coverLetterHtml: '' },
           };
           trackJobResult(jobId, fakeResult, 'manual');
           renderResult(fakeResult);

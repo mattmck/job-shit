@@ -105,9 +105,9 @@ export function describeProvider(model: string, preferredProvider: ProviderChoic
     return '(no provider configured)';
   }
   if (['auto', 'default'].includes(model.toLowerCase()) && !provider.defaultModel) {
-    throw new Error(
-      `No default model configured for provider "${provider.label}". ` +
-        'Set a defaultModel in your provider profile or specify an explicit model.',
+    return (
+      `${provider.label} · (no default model configured; ` +
+      'set a defaultModel in your provider profile or specify an explicit model)'
     );
   }
   return `${provider.label} · ${resolveModel(model, provider.defaultModel)}`;

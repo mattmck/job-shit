@@ -3097,9 +3097,12 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
     });
 
     // Result viewer tabs
-    document.querySelectorAll('.result-view-tab').forEach(b => {
+    document.querySelectorAll('.result-view-tab[data-viewer]').forEach(b => {
       b.addEventListener('click', () => {
-        const [prefix, viewer] = b.dataset.viewer.split('-');
+        const viewerAttr = b.dataset.viewer;
+        if (!viewerAttr) return;
+        const [prefix, viewer] = viewerAttr.split('-');
+        if (!viewer) return;
         selectViewer(prefix === 'cover' ? 'cover' : 'resume', viewer);
       });
     });

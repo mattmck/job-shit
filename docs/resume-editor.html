@@ -8,13 +8,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
+    html, body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #1a1a1a;
       color: #eee;
       display: flex;
+      width: 100%;
       height: 100vh;
+      height: 100%;
       overflow: hidden;
+    }
+
+    body[data-view-mode="edit"] .editor,
+    body[data-view-mode="preview"] .preview-pane {
+      width: 100%;
+      border-right: none;
+    }
+
+    body[data-view-mode="edit"] .preview-pane,
+    body[data-view-mode="preview"] .editor {
+      display: none;
     }
 
     /* ── Left: Editor panel ── */
@@ -198,7 +211,7 @@
       margin-bottom: 16px;
     }
     #preview {
-      background: #B7CCE0;
+      background: #CEE6FE;
       padding: 40px 54px;
       max-width: 760px;
       border-radius: 4px;
@@ -310,6 +323,9 @@ const data = {
 };
 
 function sid() { return Math.random().toString(36).slice(2, 9); }
+let suppressHostSync = false;
+const initialView = new URLSearchParams(window.location.search).get('view');
+let viewMode = initialView === 'edit' || initialView === 'preview' ? initialView : 'split';
 
 // ── Render editor ──
 
@@ -326,6 +342,12 @@ function renderEditor() {
   });
 
   renderPreview();
+  notifyHost();
+}
+
+function applyViewMode(mode) {
+  viewMode = mode === 'preview' || mode === 'edit' ? mode : 'split';
+  document.body.dataset.viewMode = viewMode;
 }
 
 function makeHeaderBlock() {
@@ -900,6 +922,22 @@ function importMarkdown(md) {
   renderEditor();
 }
 
+function importMarkdownFromHost(md) {
+  suppressHostSync = true;
+  importMarkdown(md);
+  suppressHostSync = false;
+}
+
+function notifyHost() {
+  if (suppressHostSync || window.parent === window) {
+    return;
+  }
+  window.parent.postMessage({
+    type: 'resume-editor-change',
+    markdown: toMarkdown(),
+  }, '*');
+}
+
 function handleFile(file) {
   if (!file) return;
   const reader = new FileReader();
@@ -921,8 +959,47 @@ dropZone.addEventListener('drop', (e) => {
   if (file) handleFile(file);
 });
 
+window.addEventListener('message', (event) => {
+  const message = event.data;
+  if (!message || typeof message !== 'object') {
+    return;
+  }
+  if (message.type === 'resume-editor-import' && typeof message.markdown === 'string') {
+    importMarkdownFromHost(message.markdown);
+  }
+  if (message.type === 'resume-editor-set-view') {
+    applyViewMode(message.view);
+  }
+  if (message.type === 'resume-editor-set-theme' && message.theme) {
+    applyPreviewTheme(message.theme);
+  }
+});
+
+function applyPreviewTheme(theme) {
+  let style = document.getElementById('theme-override');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'theme-override';
+    document.head.appendChild(style);
+  }
+  style.textContent = `
+    #preview { background: ${theme.background || '#CEE6FE'}; }
+    #preview, #preview li, #preview p, #preview ul { color: ${theme.body || '#323434'}; }
+    #preview h1, #preview h2.section { color: ${theme.accent || '#BE503C'}; }
+    #preview h2.role, #preview .job-company { color: ${theme.subheading || '#364D62'}; }
+    #preview h3 { color: ${theme.jobTitle || '#182234'}; }
+    #preview p.date, #preview .job-location { color: ${theme.date || '#3B72A8'}; }
+    #preview p.contact, #preview p.links { color: ${theme.contact || '#323434'}; }
+    #preview p.contact a, #preview p.links a, #preview a { color: ${theme.link || '#255F91'}; }
+  `;
+}
+
 // ── Init ──
+applyViewMode(viewMode);
 renderEditor();
+if (window.parent !== window) {
+  window.parent.postMessage({ type: 'resume-editor-ready' }, '*');
+}
 </script>
 </body>
 </html>

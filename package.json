@@ -7,8 +7,12 @@
     "job-shit": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && node -e \"const fs = require('fs'); fs.rmSync('dist/templates', { recursive: true, force: true }); fs.mkdirSync('dist/templates', { recursive: true }); fs.cpSync('src/templates', 'dist/templates', { recursive: true });\"",
+    "build": "tsc && rm -rf dist/templates dist/workbench && cp -r src/templates dist/templates && cp -r src/workbench dist/workbench && cp docs/resume-editor.html dist/workbench/resume-editor.html",
     "dev": "tsx src/cli.ts",
+    "serve": "tsx src/cli.ts serve",
+    "shit": "tsx src/cli.ts serve",
+    "shots:workbench": "node scripts/capture-workbench-shots.mjs",
+    "video:promo": "node scripts/build-workbench-promo.mjs",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

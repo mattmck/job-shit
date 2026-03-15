@@ -272,7 +272,31 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
 
   if (method === 'GET' && url.pathname.startsWith('/api/workspaces/')) {
     const id = decodeURIComponent(url.pathname.slice('/api/workspaces/'.length));
-    sendJson(res, 200, loadSavedWorkspace(id));
+    try {
+      const workspace = loadSavedWorkspace(id);
+      sendJson(res, 200, workspace);
+    } catch (error) {
+      const err = error as Error;
+      const message = err.message || 'Workspace error';
+      const lowerMessage = message.toLowerCase();
+
+      // Heuristic mapping of expected errors to HTTP status codes
+      if (lowerMessage.includes('not found') || lowerMessage.includes('no such workspace')) {
+        sendJson(res, 404, { error: message });
+      } else if (
+        lowerMessage.includes('invalid') ||
+        lowerMessage.includes('bad request') ||
+        lowerMessage.includes('malformed') ||
+        err.name === 'SyntaxError' ||
+        err.name === 'TypeError'
+      ) {
+        sendJson(res, 400, { error: message });
+      } else {
+        // Unexpected error: avoid leaking internals
+        console.error('Error loading workspace:', err);
+        sendJson(res, 500, { error: 'Internal server error' });
+      }
+    }
     return;
   }
 

@@ -1,6 +1,15 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import {
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
+import { dirname, join, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir, tmpdir } from 'os';
 import { loadConfig } from './config.js';
@@ -339,18 +348,58 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
       sendJson(res, 400, { error: 'Missing path parameter.' });
       return;
     }
-    const resolved = resolve(filePath);
-    const cwd = process.cwd();
-    const home = join(homedir(), '.job-shit');
-    if (!resolved.startsWith(cwd) && !resolved.startsWith(home)) {
-      sendJson(res, 403, { error: 'Path not allowed.' });
-      return;
-    }
-    if (!existsSync(resolved)) {
+    const requestedPath = resolve(filePath);
+
+    // Reject direct symlink targets to avoid following symlinks out of allowed directories.
+    let requestedLstat;
+    try {
+      requestedLstat = lstatSync(requestedPath);
+    } catch {
+      // Path does not exist.
       sendJson(res, 200, { exists: false });
       return;
     }
-    const stat = statSync(resolved);
+    if (requestedLstat.isSymbolicLink()) {
+      sendJson(res, 403, { error: 'Path not allowed.' });
+      return;
+    }
+
+    // Resolve the real path (resolves any intermediate symlinks) before applying allowlist checks.
+    let realPath: string;
+    try {
+      realPath = realpathSync(requestedPath);
+    } catch {
+      // If we can't resolve the real path, treat it as non-existent.
+      sendJson(res, 200, { exists: false });
+      return;
+    }
+
+    const cwd = process.cwd();
+    const home = join(homedir(), '.job-shit');
+
+    // Normalize allowed roots, skipping any that do not yet exist on disk.
+    const allowedRoots: string[] = [];
+    try {
+      allowedRoots.push(realpathSync(cwd));
+    } catch {
+      // ignore
+    }
+    try {
+      allowedRoots.push(realpathSync(home));
+    } catch {
+      // ignore
+    }
+
+    const isWithinAllowedRoot = allowedRoots.some((root) => {
+      return realPath === root || realPath.startsWith(root + sep);
+    });
+
+    if (!isWithinAllowedRoot) {
+      sendJson(res, 403, { error: 'Path not allowed.' });
+      return;
+    }
+
+    const stat = statSync(realPath);
     sendJson(res, 200, { exists: true, mtime: stat.mtime.toISOString(), size: stat.size });
     return;
   }
@@ -361,19 +410,56 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
       sendJson(res, 400, { error: 'Missing path parameter.' });
       return;
     }
-    const resolved = resolve(filePath);
-    const cwd = process.cwd();
-    const home = join(homedir(), '.job-shit');
-    if (!resolved.startsWith(cwd) && !resolved.startsWith(home)) {
-      sendJson(res, 403, { error: 'Path not allowed.' });
-      return;
-    }
-    if (!existsSync(resolved)) {
+    const requestedPath = resolve(filePath);
+
+    // Reject direct symlink targets to avoid following symlinks out of allowed directories.
+    let requestedLstat;
+    try {
+      requestedLstat = lstatSync(requestedPath);
+    } catch {
       sendJson(res, 404, { error: 'File not found.' });
       return;
     }
-    const content = readFileSync(resolved, 'utf8');
-    const stat = statSync(resolved);
+    if (requestedLstat.isSymbolicLink()) {
+      sendJson(res, 403, { error: 'Path not allowed.' });
+      return;
+    }
+
+    // Resolve real path for allowlist checks and I/O.
+    let realPath: string;
+    try {
+      realPath = realpathSync(requestedPath);
+    } catch {
+      sendJson(res, 404, { error: 'File not found.' });
+      return;
+    }
+
+    const cwd = process.cwd();
+    const home = join(homedir(), '.job-shit');
+
+    const allowedRoots: string[] = [];
+    try {
+      allowedRoots.push(realpathSync(cwd));
+    } catch {
+      // ignore
+    }
+    try {
+      allowedRoots.push(realpathSync(home));
+    } catch {
+      // ignore
+    }
+
+    const isWithinAllowedRoot = allowedRoots.some((root) => {
+      return realPath === root || realPath.startsWith(root + sep);
+    });
+
+    if (!isWithinAllowedRoot) {
+      sendJson(res, 403, { error: 'Path not allowed.' });
+      return;
+    }
+
+    const content = readFileSync(realPath, 'utf8');
+    const stat = statSync(realPath);
     sendJson(res, 200, { content, mtime: stat.mtime.toISOString() });
     return;
   }

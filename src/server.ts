@@ -32,6 +32,7 @@ import {
 import { runTailorWorkflow } from './services/runs.js';
 import { analyzeGap, analyzeGapWithAI } from './services/gap.js';
 import { regenerateResumeSection } from './services/review.js';
+import { scoreTailoredOutput } from './services/scoring.js';
 import { listSavedWorkspaces, loadSavedWorkspace, saveWorkspaceSnapshot } from './services/workspace-store.js';
 import { resolveWorkspaceDocuments } from './services/workspace.js';
 import {
@@ -95,6 +96,16 @@ interface GapBody {
   jobDescription: string;
   jobTitle?: string;
   useAI?: boolean;
+  model?: string;
+}
+
+interface ScoreBody {
+  resume: string;
+  coverLetter: string;
+  jobDescription: string;
+  company?: string;
+  jobTitle?: string;
+  bio?: string;
   model?: string;
 }
 
@@ -577,6 +588,27 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
     }
 
     sendJson(res, 200, analyzeGap(body.resume ?? '', body.jobDescription ?? '', body.jobTitle));
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/score') {
+    const body = await readJsonBody<ScoreBody>(req);
+    const config = loadConfig();
+    const scorecard = await scoreTailoredOutput({
+      input: {
+        resume: body.resume,
+        bio: body.bio ?? '',
+        jobDescription: body.jobDescription,
+        company: body.company ?? '',
+        jobTitle: body.jobTitle ?? '',
+      },
+      output: {
+        resume: body.resume,
+        coverLetter: body.coverLetter,
+      },
+      scoringModel: body.model ?? config.scoringModel,
+    });
+    sendJson(res, 200, scorecard);
     return;
   }
 

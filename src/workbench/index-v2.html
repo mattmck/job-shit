@@ -405,34 +405,49 @@
     /* ── SCORES ROW ──────────────────────────────────────── */
 
     .scores-row {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       padding: 12px 16px;
       border-bottom: 1px solid var(--line);
       background: var(--surface);
       flex-shrink: 0;
+      max-height: 180px;
+      overflow-y: auto;
     }
 
     .score-cards {
       display: flex;
-      gap: 10px;
-      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
     }
 
     .score-card {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 6px 14px;
+      padding: 6px 10px;
       background: var(--surface-strong);
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
-      min-width: 72px;
+      min-width: 64px;
+    }
+    .score-card--featured {
+      border-color: var(--accent);
+      background: rgba(200,120,90,0.08);
+    }
+
+    .score-card__eyebrow {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 2px;
     }
 
     .score-card__value {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--text);
       line-height: 1;
@@ -446,11 +461,16 @@
     .score--low { color: #a66; }
 
     .score-card__label {
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       color: var(--muted);
       margin-top: 2px;
+    }
+    .score-card__footer {
+      font-size: 8px;
+      color: var(--muted);
+      opacity: 0.6;
     }
 
     .analysis-notes {
@@ -465,7 +485,7 @@
       color: var(--deep);
       line-height: 1.5;
       overflow-y: auto;
-      max-height: 60px;
+      max-height: 80px;
     }
 
     .analysis-notes__text--empty {
@@ -1393,18 +1413,7 @@
       <!-- Scores Row -->
       <section class="scores-row" id="scores-row">
         <div class="score-cards" id="score-cards">
-          <div class="score-card">
-            <span class="score-card__value score-card__value--empty" id="score-resume">&mdash;</span>
-            <span class="score-card__label">Resume</span>
-          </div>
-          <div class="score-card">
-            <span class="score-card__value score-card__value--empty" id="score-cover">&mdash;</span>
-            <span class="score-card__label">Cover</span>
-          </div>
-          <div class="score-card">
-            <span class="score-card__value score-card__value--empty" id="score-accuracy">&mdash;</span>
-            <span class="score-card__label">Accuracy</span>
-          </div>
+          <!-- Populated dynamically by renderScoreCards() -->
         </div>
         <div class="analysis-notes">
           <div class="analysis-notes__text analysis-notes__text--empty" id="analysis-text">
@@ -2318,6 +2327,7 @@
       }
       state.scoresStale = true;
       renderPreviewPanel();
+      renderScoreCards();
     }
 
     // ── Keyword coverage per section ──
@@ -2891,60 +2901,69 @@
     //  SCORE CARDS & ANALYSIS
     // ═══════════════════════════════════════════════════════
 
+    function scoreCardHtml(c) {
+      const cls = c.featured ? 'score-card score-card--featured' : 'score-card';
+      const valCls = c.value != null
+        ? 'score-card__value' + (c.value >= 80 ? ' score--good' : c.value >= 60 ? ' score--ok' : ' score--low')
+        : 'score-card__value score-card__value--empty';
+      const stale = state.scoresStale ? ' \u2192 ?' : '';
+      return `<div class="${cls}">
+        <span class="score-card__eyebrow">${escHtml(c.eyebrow)}</span>
+        <span class="${valCls}">${c.value != null ? c.value + stale : '\u2014'}</span>
+        <span class="score-card__label">${escHtml(c.label)}</span>
+        ${c.footer ? `<span class="score-card__footer">${escHtml(c.footer)}</span>` : ''}
+      </div>`;
+    }
+
     function renderScoreCards() {
       const job = state.jobs.find(j => j.id === state.activeJobId);
-      const scoreResume = document.getElementById('score-resume');
-      const scoreCover = document.getElementById('score-cover');
-      const scoreAccuracy = document.getElementById('score-accuracy');
+      const cardsEl = document.getElementById('score-cards');
       const analysisText = document.getElementById('analysis-text');
 
       if (!job?.result?.scorecard) {
-        scoreResume.textContent = '\u2014';
-        scoreResume.className = 'score-card__value score-card__value--empty';
-        scoreCover.textContent = '\u2014';
-        scoreCover.className = 'score-card__value score-card__value--empty';
-        scoreAccuracy.textContent = '\u2014';
-        scoreAccuracy.className = 'score-card__value score-card__value--empty';
+        cardsEl.innerHTML = [
+          { eyebrow: 'Engine', label: 'Overall', value: null },
+          { eyebrow: 'ATS', label: 'Keywords', value: null },
+          { eyebrow: 'Reviewer', label: 'Overall', value: null },
+        ].map(scoreCardHtml).join('');
         analysisText.textContent = 'Run tailoring to see scores and analysis';
         analysisText.className = 'analysis-notes__text analysis-notes__text--empty';
         return;
       }
 
       const sc = job.result.scorecard;
-      const ev = sc.evaluator || {};
       const h = sc.heuristic || {};
+      const e = sc.evaluator;
 
-      // Score values
-      const resumeScore = ev.overall ?? h.overall ?? null;
-      const coverScore = ev.hrClarity ?? h.coverLetterSpecificity ?? null;
-      const accuracyScore = ev.factualRisk ?? null;
+      const cards = [
+        { eyebrow: 'Engine', label: 'Overall fit', value: h.overall, footer: 'generation', featured: true },
+        { eyebrow: 'ATS', label: 'Keywords', value: h.keywordAlignment, footer: 'match' },
+        { eyebrow: 'ATS', label: 'Structure', value: h.structure, footer: 'parseability' },
+        { eyebrow: 'Resume', label: 'Impact', value: h.quantifiedImpact, footer: 'evidence' },
+        { eyebrow: 'Cover', label: 'Specificity', value: h.coverLetterSpecificity, footer: 'focus' },
+        { eyebrow: 'Risk', label: 'Low AI-obvious', value: h.aiObviousnessRisk != null ? 100 - h.aiObviousnessRisk : null, footer: 'tone' },
+      ];
 
-      function setScore(el, val) {
-        if (val != null) {
-          el.textContent = val;
-          el.className = 'score-card__value' + (val >= 80 ? ' score--good' : val >= 60 ? ' score--ok' : ' score--low');
-        } else {
-          el.textContent = '\u2014';
-          el.className = 'score-card__value score-card__value--empty';
-        }
+      if (e) {
+        cards.push(
+          { eyebrow: 'Reviewer', label: 'Overall', value: e.overall, footer: 'review', featured: true },
+          { eyebrow: 'Reviewer', label: 'ATS', value: e.atsCompatibility, footer: 'scanner fit' },
+          { eyebrow: 'Recruiter', label: 'Skim clarity', value: e.recruiterClarity, footer: 'skim' },
+          { eyebrow: 'HR', label: 'Clarity', value: e.hrClarity, footer: 'clarity' },
+          { eyebrow: 'Reviewer', label: 'Low AI-obvious', value: e.aiObviousness, footer: 'voice' },
+          { eyebrow: 'Reviewer', label: 'Factual', value: e.factualRisk, footer: 'accuracy' },
+        );
       }
 
-      setScore(scoreResume, resumeScore);
-      setScore(scoreCover, coverScore);
-      setScore(scoreAccuracy, accuracyScore);
+      cardsEl.innerHTML = cards.map(scoreCardHtml).join('');
 
       // Analysis notes
-      const notes = ev.notes || h.warnings || [];
+      const notes = (e?.notes) || h.warnings || [];
       if (notes.length > 0) {
         analysisText.className = 'analysis-notes__text';
-        analysisText.innerHTML = notes.map(n => '<div style="margin-bottom:6px;">• ' + escHtml(n) + '</div>').join('');
-      }
-
-      // Stale indicator
-      if (state.scoresStale) {
-        [scoreResume, scoreCover, scoreAccuracy].forEach(el => {
-          el.textContent += ' \u2192 ?';
-        });
+        analysisText.innerHTML = notes.map(n => '<div style="margin-bottom:6px;">\u2022 ' + escHtml(n) + '</div>').join('');
+      } else {
+        analysisText.textContent = '';
       }
     }
 
@@ -3152,6 +3171,65 @@
     }
 
     // ═══════════════════════════════════════════════════════
+    //  RE-GRADE (scores + gap refresh)
+    // ═══════════════════════════════════════════════════════
+
+    async function regrade() {
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      if (!job?.result) return;
+
+      const btn = document.getElementById('btn-regrade');
+      btn.disabled = true;
+      btn.textContent = 'Re-grading...';
+
+      try {
+        // Run scoring and gap analysis in parallel
+        const [scoreRes, gapRes] = await Promise.all([
+          fetch('/api/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resume: job.result.output.resume,
+              coverLetter: job.result.output.coverLetter,
+              jobDescription: job.jd,
+              company: job.company,
+              jobTitle: job.title,
+              bio: state.sourceBio,
+            }),
+          }),
+          fetch('/api/gap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resume: job.result.output.resume,
+              bio: state.sourceBio,
+              jobDescription: job.jd,
+              jobTitle: job.title,
+              useAI: true,
+            }),
+          }),
+        ]);
+
+        if (scoreRes.ok) {
+          job.result.scorecard = await scoreRes.json();
+        }
+        if (gapRes.ok) {
+          job.result.gapAnalysis = await gapRes.json();
+        }
+
+        state.scoresStale = false;
+        renderScoreCards();
+        renderEditor();
+        renderMissingKeywords();
+      } catch (e) {
+        console.error('Re-grade failed:', e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Re-grade';
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
     //  INITIALIZATION
     // ═══════════════════════════════════════════════════════
 
@@ -3204,6 +3282,11 @@
       });
       document.getElementById('config-scoring-model').addEventListener('change', (e) => {
         state.scoreModel = e.target.value || state.tailorModel || 'auto';
+      });
+
+      // Re-grade button
+      document.getElementById('btn-regrade').addEventListener('click', () => {
+        regrade().catch(e => console.error('Re-grade error:', e));
       });
 
       // Job panel buttons

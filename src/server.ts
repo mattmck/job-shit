@@ -195,6 +195,14 @@ function readWorkbenchHtml(): string {
   return readFileSync(join(__dirname, 'workbench', 'index.html'), 'utf8');
 }
 
+function readWorkbenchV2Html(): string {
+  const packaged = join(__dirname, 'workbench', 'index-v2.html');
+  if (existsSync(packaged)) {
+    return readFileSync(packaged, 'utf8');
+  }
+  return readFileSync(join(process.cwd(), 'src', 'workbench', 'index-v2.html'), 'utf8');
+}
+
 function readResumeEditorHtml(): string {
   const packaged = join(__dirname, 'workbench', 'resume-editor.html');
   if (existsSync(packaged)) {
@@ -616,6 +624,10 @@ export async function startWorkbenchServer(
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/') {
         sendHtml(res, readWorkbenchHtml());
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/v2') {
+        sendHtml(res, readWorkbenchV2Html());
         return;
       }
       if (req.method === 'GET' && url.pathname === '/resume-editor') {

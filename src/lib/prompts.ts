@@ -107,6 +107,8 @@ Return strict JSON only with this exact shape:
 ## Keyword extraction rules
 - Focus on CONCRETE skills, technologies, tools, platforms, methodologies, and domain expertise
 - IGNORE generic JD filler: "fast-paced environment", "team player", "strong communicator", "results-driven", etc.
+- IGNORE EEO, legal, privacy, benefits, compensation, and pay-transparency sections entirely
+- NEVER surface protected-class language or compliance boilerplate as a keyword (examples: race, color, religion, sex, veteran status, disability, national origin)
 - Combine related terms into single entries: "React/React.js" is one keyword, not two
 - Category must be one of: language, framework, tool, platform, soft-skill, certification, methodology, other
 - Only use "other" for genuinely important domain terms (e.g., "distributed systems", "event-driven architecture") — NOT for boilerplate
@@ -115,6 +117,7 @@ Return strict JSON only with this exact shape:
 - "matched": resume clearly demonstrates this skill/technology with evidence
 - "partial": resume shows a related/similar skill but not an exact match (explain the relationship)
 - "missing": resume has no evidence of this skill
+- Do not mark something as "matched" unless the resume really supports it
 
 ## Experience requirements
 - Extract explicit years-of-experience requirements from the JD (e.g., "5+ years of Python")

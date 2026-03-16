@@ -42,10 +42,10 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
+      display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 16px;
+      gap: 10px 20px;
       padding: 10px 24px;
       background: linear-gradient(180deg, rgba(30,30,30,0.97), rgba(20,20,20,0.95));
       backdrop-filter: blur(12px);
@@ -56,21 +56,22 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      min-width: 0;
+      flex-shrink: 0;
     }
 
     .top-bar__center {
       display: flex;
       align-items: center;
       gap: 12px;
-      justify-content: center;
+      flex-shrink: 0;
     }
 
     .top-bar__right {
       display: flex;
       align-items: center;
       gap: 12px;
-      justify-content: flex-end;
+      margin-left: auto;
+      flex-shrink: 0;
     }
 
     .top-bar label {
@@ -1003,7 +1004,6 @@
     .review-sections {
       display: grid;
       gap: 10px;
-      max-height: 680px;
       overflow: auto;
       padding-right: 2px;
     }
@@ -1044,16 +1044,17 @@
     }
 
     .review-section__title {
-      display: grid;
-      gap: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px;
       min-width: 0;
+      flex: 1;
     }
 
     .review-section__title strong {
       font-size: 14px;
       color: var(--deep);
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
@@ -1477,13 +1478,10 @@
 
     @media (max-width: 1100px) {
       .top-bar {
-        grid-template-columns: 1fr;
-        gap: 8px;
+        gap: 8px 12px;
       }
-      .top-bar__left,
-      .top-bar__center,
       .top-bar__right {
-        justify-content: flex-start;
+        margin-left: 0;
       }
       .job-target-layout {
         grid-template-columns: 1fr;
@@ -1917,7 +1915,7 @@
       jobResults: {},
       diffView: 'base',
       resultInsightsToken: 0,
-      reviewExpandedSectionId: '',
+      reviewExpandedSections: {},   // { [sectionId]: true } — multiple can be open; default all open
       reviewEditingSectionId: '',
       reviewBusySectionId: '',
       reviewAcceptedSections: {},
@@ -2169,7 +2167,10 @@
 
     function normalizeReviewState(sections) {
       const ids = new Set((sections || []).map(section => section.id));
-      if (state.reviewExpandedSectionId && !ids.has(state.reviewExpandedSectionId)) state.reviewExpandedSectionId = '';
+      // Clean up expanded state for removed sections; default new sections to expanded
+      state.reviewExpandedSections = Object.fromEntries(
+        (sections || []).map(section => [section.id, state.reviewExpandedSections[section.id] ?? true]),
+      );
       if (state.reviewEditingSectionId && !ids.has(state.reviewEditingSectionId)) state.reviewEditingSectionId = '';
       state.reviewBusySectionId = ids.has(state.reviewBusySectionId) ? state.reviewBusySectionId : '';
       state.reviewAcceptedSections = Object.fromEntries(
@@ -3265,7 +3266,7 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
         : 'Section-by-section editor';
 
       els.reviewSections.innerHTML = sections.length ? sections.map(section => {
-        const open = state.reviewExpandedSectionId === section.id;
+        const open = !!state.reviewExpandedSections[section.id];
         const editing = state.reviewEditingSectionId === section.id;
         const accepted = !!state.reviewAcceptedSections[section.id];
         const diffOpen = !!state.reviewShowSectionDiff[section.id];
@@ -3377,7 +3378,7 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
     }
 
     function toggleReviewSectionOpen(sectionId) {
-      state.reviewExpandedSectionId = state.reviewExpandedSectionId === sectionId ? '' : sectionId;
+      state.reviewExpandedSections[sectionId] = !state.reviewExpandedSections[sectionId];
       renderReviewSections(state.lastResult);
     }
 
@@ -3398,7 +3399,7 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
         updateResultResume(assembleSectionsClient(updated));
         return;
       }
-      state.reviewExpandedSectionId = sectionId;
+      state.reviewExpandedSections[sectionId] = true;
       state.reviewEditingSectionId = sectionId;
       state.reviewDrafts[sectionId] = state.reviewDrafts[sectionId] ?? section.content;
       renderReviewSections(state.lastResult);
@@ -3435,7 +3436,7 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
           }),
         });
         state.reviewEditingSectionId = '';
-        state.reviewExpandedSectionId = sectionId;
+        state.reviewExpandedSections[sectionId] = true;
         delete state.reviewDrafts[sectionId];
         updateResultResume(result.markdown);
       } catch (error) {
@@ -3475,7 +3476,7 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
       if (els.reviewStatus) {
         els.reviewStatus.textContent = 'Section-by-section editor';
       }
-      state.reviewExpandedSectionId = '';
+      state.reviewExpandedSections = {};
       state.reviewEditingSectionId = '';
       state.reviewBusySectionId = '';
       state.reviewAcceptedSections = {};
@@ -4167,8 +4168,17 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
     selectMarkdownTab('resume');
     selectPreviewTab('resume');
 
-    Promise.all([loadConfig(), refreshWorkspaces().catch(() => ({ workspaces: [] }))])
-      .then(loadWorkspace)
+    Promise.allSettled([loadConfig(), refreshWorkspaces().catch(() => ({ workspaces: [] }))])
+      .then(async ([configResult]) => {
+        let configMessage = '';
+        if (configResult.status === 'rejected') {
+          configMessage = configResult.reason?.message || String(configResult.reason);
+        }
+        await loadWorkspace();
+        if (configMessage) {
+          setStatus(els.runStatus, `Config unavailable: ${configMessage}`);
+        }
+      })
       .catch(error => {
         setStatus(els.sourceStatus, error.message);
         setStatus(els.runStatus, error.message);

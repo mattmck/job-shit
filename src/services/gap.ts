@@ -65,6 +65,53 @@ const SOFT_SKILL_TERMS = new Set([
   'ownership', 'presentation', 'problem solving', 'stakeholder management', 'teamwork',
 ]);
 
+const IMPORTANT_OTHER_TERMS = new Set([
+  'accessibility', 'api design', 'cloud infrastructure', 'container orchestration', 'data pipelines',
+  'design systems', 'distributed systems', 'event driven architecture', 'frontend architecture',
+  'infrastructure as code', 'machine learning', 'microservices', 'observability', 'performance optimization',
+  'relational databases', 'security best practices', 'site reliability engineering', 'system design',
+  'technical leadership', 'test automation',
+]);
+
+const JD_NOISE_SECTION_HEADINGS = [
+  /^equal opportunity\b/i,
+  /^eeo\b/i,
+  /^benefits\b/i,
+  /^compensation\b/i,
+  /^pay range\b/i,
+  /^salary range\b/i,
+  /^privacy\b/i,
+  /^applicant privacy\b/i,
+  /^reasonable accommodation\b/i,
+  /^accommodation\b/i,
+];
+
+const JD_NOISE_PATTERNS = [
+  /\bequal opportunity\b/i,
+  /\ball qualified applicants\b/i,
+  /\bdoes not discriminate\b/i,
+  /\bsexual orientation\b/i,
+  /\bgender identity\b/i,
+  /\bnational origin\b/i,
+  /\bprotected veteran\b/i,
+  /\bveteran status\b/i,
+  /\breasonable accommodation\b/i,
+  /\bapplicant privacy\b/i,
+  /\bprivacy notice\b/i,
+  /\bprivacy policy\b/i,
+  /\bpersonal data\b/i,
+  /\bmedical,?\s+dental,?\s+(?:and\s+)?vision\b/i,
+  /\bpaid time off\b/i,
+  /\bparental leave\b/i,
+  /\b401k\b/i,
+  /\bsalary range\b/i,
+  /\bpay range\b/i,
+  /\bcompensation range\b/i,
+  /\bbonus eligible\b/i,
+  /\bequity package\b/i,
+  /\brace,?\s+color,?\s+religion\b/i,
+];
+
 const SYNONYMS: Record<string, string[]> = {
   aws: ['amazon web services'],
   'amazon web services': ['aws'],
@@ -93,6 +140,37 @@ function normalize(text: string): string {
 function tokenize(text: string): string[] {
   return (normalize(text).match(/[a-z0-9][a-z0-9+.#/&-]*/g) ?? [])
     .map((t) => t.replace(/[.]+$/, '')); // strip trailing dots (but keep internal ones like "node.js")
+}
+
+function isNoiseText(text: string): boolean {
+  const normalized = normalize(text);
+  return JD_NOISE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function stripJobDescriptionNoise(text: string): string {
+  const paragraphs = text.replace(/\r\n/g, '\n').split(/\n\s*\n/);
+  const kept: string[] = [];
+
+  for (const paragraph of paragraphs) {
+    const lines = paragraph
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (!lines.length) continue;
+
+    const heading = lines[0].replace(/^[-*]\s*/, '');
+    if (JD_NOISE_SECTION_HEADINGS.some((pattern) => pattern.test(heading)) || isNoiseText(paragraph)) {
+      continue;
+    }
+
+    const filteredLines = lines.filter((line) => !isNoiseText(line.replace(/^[-*]\s*/, '')));
+    if (filteredLines.length > 0) {
+      kept.push(filteredLines.join('\n'));
+    }
+  }
+
+  return kept.join('\n\n');
 }
 
 function isRelevantToken(token: string): boolean {
@@ -131,6 +209,7 @@ export function categorizeKeyword(term: string): CategorizedKeyword {
   if (METHODOLOGY_TERMS.has(n)) return { term, category: 'methodology' };
   if (SOFT_SKILL_TERMS.has(n)) return { term, category: 'soft-skill' };
   if (/certif|license|certified/.test(n)) return { term, category: 'certification' };
+  if (IMPORTANT_OTHER_TERMS.has(n)) return { term, category: 'other' };
 
   return { term, category: 'other' };
 }
@@ -143,7 +222,8 @@ export function categorizeKeyword(term: string): CategorizedKeyword {
  * Capped at 30 terms max.
  */
 export function extractPhrases(text: string): string[] {
-  const tokens = tokenize(text);
+  const cleanedText = stripJobDescriptionNoise(text);
+  const tokens = tokenize(cleanedText);
   const counts = new Map<string, number>();
 
   // Single tokens
@@ -174,7 +254,7 @@ export function extractPhrases(text: string): string[] {
     .filter(([term, count]) => {
       const category = categorizeKeyword(term).category;
       // Always keep terms we can categorize as something specific
-      if (category !== 'other') return true;
+      if (category !== 'other' || IMPORTANT_OTHER_TERMS.has(term)) return true;
       // Keep multi-word phrases that appear 2+ times (likely real requirements)
       if (term.includes(' ') && count >= 2) return true;
       // Drop low-frequency 'other' single words — this is where the 993 noise lived
@@ -362,7 +442,12 @@ export async function analyzeGapWithAI(
   jobDescription: string,
   jobTitle?: string,
   model = 'auto',
-  complete = defaultComplete,
+  complete: (
+    model: string,
+    systemPrompt: string,
+    userPrompt: string,
+    verbose?: boolean,
+  ) => Promise<string> = defaultComplete,
 ): Promise<EnrichedGapAnalysis> {
   try {
     const raw = await complete(

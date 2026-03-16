@@ -121,6 +121,17 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+function logUsingEntries(entries: Array<{ label: string; value?: string }>): void {
+  const filtered = entries.filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
+  if (filtered.length === 0) return;
+
+  const width = Math.max(...filtered.map((entry) => entry.label.length));
+  console.log('');
+  for (const entry of filtered) {
+    console.log(`Using ${entry.label.padEnd(width)} ${entry.value}`);
+  }
+}
+
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
@@ -321,7 +332,7 @@ export function registerHuntrCommand(program: Command): void {
         )
         : analyzeGap(resume, jobDescription, job.title);
 
-      console.log(`\nUsing resume: ${resumePath}`);
+      logUsingEntries([{ label: 'resume:', value: resumePath }]);
       console.log(formatGapAnalysisSummary(analysis));
     });
 
@@ -375,10 +386,12 @@ export function registerHuntrCommand(program: Command): void {
       const config = loadConfig();
       const model = opts.model ?? config.model;
 
-      console.log(`\nUsing resume: ${resumePath}`);
-      console.log(`Using bio:    ${bioPath}`);
-      if (supplementalPath) console.log(`Using supplemental: ${supplementalPath}`);
-      console.log(`Using AI:     ${describeProvider(model)}`);
+      logUsingEntries([
+        { label: 'resume:', value: resumePath },
+        { label: 'bio:', value: bioPath },
+        { label: 'supplemental:', value: supplementalPath },
+        { label: 'AI:', value: describeProvider(model) },
+      ]);
 
       await tailorAndWrite({
         job,
@@ -438,10 +451,12 @@ export function registerHuntrCommand(program: Command): void {
       const config = loadConfig();
       const model = opts.model ?? config.model;
 
-      console.log(`\nUsing resume: ${resumePath}`);
-      console.log(`Using bio:    ${bioPath}`);
-      if (supplementalPath) console.log(`Using supplemental: ${supplementalPath}`);
-      console.log(`Using AI:     ${describeProvider(model)}`);
+      logUsingEntries([
+        { label: 'resume:', value: resumePath },
+        { label: 'bio:', value: bioPath },
+        { label: 'supplemental:', value: supplementalPath },
+        { label: 'AI:', value: describeProvider(model) },
+      ]);
       console.log('');
 
       const wishlistJobs = (await listSharedWishlistJobs(client, opts.board)).map((entry) => entry.job);
@@ -602,7 +617,14 @@ async function tailorAndWrite(args: {
 
   console.log(`🎯  ${job.title} @ ${companyName}`);
   if (showGap) {
-    console.log(formatGapAnalysisSummary(analyzeGap(resume, jobDescription, job.title)));
+    const analysis = await analyzeGapWithAI(
+      resume,
+      bio,
+      jobDescription,
+      job.title,
+      model,
+    );
+    console.log(formatGapAnalysisSummary(analysis));
   }
   console.log('    Generating resume and cover letter in parallel...');
 

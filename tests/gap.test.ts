@@ -42,6 +42,29 @@ describe('extractPhrases', () => {
     const phrases = extractPhrases('React components and React hooks');
     expect(phrases).toContain('react');
   });
+
+  it('drops legal, privacy, and benefits boilerplate from job footers', () => {
+    const phrases = extractPhrases(`
+      Senior Platform Engineer
+
+      Required: TypeScript, React, Kubernetes, Terraform, and distributed systems experience.
+
+      Equal Opportunity Employer: We do not discriminate based on race, color, religion, sex,
+      sexual orientation, gender identity, national origin, disability, or veteran status.
+
+      Benefits include medical, dental, vision, 401k, paid time off, and parental leave.
+      See our applicant privacy notice for more information.
+    `);
+
+    expect(phrases).toContain('typescript');
+    expect(phrases).toContain('react');
+    expect(phrases).toContain('kubernetes');
+    expect(phrases).not.toContain('race');
+    expect(phrases).not.toContain('religion');
+    expect(phrases).not.toContain('sexual orientation');
+    expect(phrases).not.toContain('medical dental vision');
+    expect(phrases).not.toContain('privacy notice');
+  });
 });
 
 describe('categorizeKeyword', () => {
@@ -153,6 +176,24 @@ describe('analyzeGap (heuristic)', () => {
     // Should be in the 15-30 range, NOT 993
     expect(totalKeywords).toBeLessThanOrEqual(30);
     expect(totalKeywords).toBeGreaterThan(5);
+  });
+
+  it('does not report protected-class footer text as missing keywords', () => {
+    const gap = analyzeGap(
+      'TypeScript React Kubernetes Terraform distributed systems',
+      `
+        We need TypeScript, React, Kubernetes, Terraform, and distributed systems experience.
+
+        We are an equal opportunity employer and do not discriminate based on race, color,
+        religion, sex, sexual orientation, gender identity, national origin, disability, or veteran status.
+      `,
+    );
+
+    const missingTerms = gap.missingKeywords.map((keyword) => keyword.term);
+    expect(missingTerms).not.toContain('race');
+    expect(missingTerms).not.toContain('color');
+    expect(missingTerms).not.toContain('religion');
+    expect(missingTerms).not.toContain('sexual orientation');
   });
 });
 

@@ -2,7 +2,7 @@ import { complete as defaultComplete } from '../lib/ai.js';
 import { diffMarkdown } from '../lib/diff.js';
 import { tailorDocuments } from '../lib/tailor.js';
 import { renderCoverLetterHtml, renderResumeHtml } from '../lib/render.js';
-import { analyzeGap } from './gap.js';
+import { analyzeGapWithAI } from './gap.js';
 import { scoreTailoredOutput } from './scoring.js';
 import {
   AgentSelection,
@@ -64,11 +64,20 @@ export async function runTailorWorkflow(args: RunTailorWorkflowArgs): Promise<Ta
     })
     : undefined;
 
+  const gapAnalysis = await analyzeGapWithAI(
+    args.input.resume,
+    args.input.bio,
+    args.input.jobDescription,
+    args.input.jobTitle,
+    args.agents.tailoringModel,
+    tailoringComplete,
+  );
+
   return {
     output,
     artifacts,
     scorecard,
     diff: diffMarkdown(args.input.resume, output.resume),
-    gapAnalysis: analyzeGap(args.input.resume, args.input.jobDescription, args.input.jobTitle),
+    gapAnalysis,
   };
 }

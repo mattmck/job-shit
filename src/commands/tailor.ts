@@ -9,11 +9,22 @@ import { describeProvider } from '../lib/ai.js';
 import { withSpinner } from '../lib/spinner.js';
 import { findFile, readFile, JOB_SHIT_DIR } from '../lib/files.js';
 import { renderResumeHtml, renderCoverLetterHtml, renderPdf, renderResumePdfFit } from '../lib/render.js';
-import { analyzeGap } from '../services/gap.js';
+import { analyzeGapWithAI } from '../services/gap.js';
 import { launchReviewTui } from '../tui/review.js';
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function logUsingEntries(entries: Array<{ label: string; value?: string }>): void {
+  const filtered = entries.filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
+  if (filtered.length === 0) return;
+
+  const width = Math.max(...filtered.map((entry) => entry.label.length));
+  console.log('');
+  for (const entry of filtered) {
+    console.log(`Using ${entry.label.padEnd(width)} ${entry.value}`);
+  }
 }
 
 export function registerTailorCommand(program: Command): void {
@@ -109,13 +120,21 @@ export function registerTailorCommand(program: Command): void {
       const config = loadConfig();
       const model = opts.model ?? config.model;
 
-      console.log(`\nUsing resume: ${resumePath}`);
-      console.log(`Using bio:    ${bioPath}`);
-      if (coverLetterPath) console.log(`Using cover letter: ${coverLetterPath}`);
-      if (supplementalPath) console.log(`Using supplemental: ${supplementalPath}`);
-      console.log(`Using AI:     ${describeProvider(model)}`);
+      logUsingEntries([
+        { label: 'resume:', value: resumePath },
+        { label: 'bio:', value: bioPath },
+        { label: 'cover letter:', value: coverLetterPath },
+        { label: 'supplemental:', value: supplementalPath },
+        { label: 'AI:', value: describeProvider(model) },
+      ]);
       if (opts.gap !== false) {
-        const gapAnalysis = analyzeGap(resume, jobDescription, opts.title);
+        const gapAnalysis = await analyzeGapWithAI(
+          resume,
+          bio,
+          jobDescription,
+          opts.title,
+          model,
+        );
         console.log('');
         console.log(formatGapAnalysisSummary(gapAnalysis));
       }

@@ -343,6 +343,21 @@
       margin-top: 2px;
     }
 
+    .source-item textarea {
+      width: 100%;
+      min-height: 140px;
+      margin-top: 8px;
+      padding: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      resize: vertical;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
     /* Config panel */
     .config-group {
       margin-bottom: 16px;
@@ -426,6 +441,9 @@
     .score-card__value--empty {
       color: var(--muted);
     }
+    .score--good { color: #6a6; }
+    .score--ok { color: #ca6; }
+    .score--low { color: #a66; }
 
     .score-card__label {
       font-size: 10px;
@@ -777,6 +795,9 @@
       position: fixed; inset: 0; z-index: 1000;
       background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
       display: flex; align-items: center; justify-content: center;
+    }
+    .modal-overlay[hidden] {
+      display: none !important;
     }
 
     .modal {
@@ -1227,6 +1248,7 @@
 
     <div class="top-bar__spacer"></div>
 
+    <span id="docs-status" style="font-size:11px; opacity:0.7;">Loading docs...</span>
     <span class="top-bar__storage" id="storage-indicator">&#x1F4BE; ~/.job-shit</span>
   </header>
 
@@ -1261,6 +1283,22 @@
           <span>No jobs loaded</span>
           <span>Load from Huntr or paste a job description</span>
         </div>
+
+        <!-- Job detail (shows when a job is selected) -->
+        <div id="job-detail" style="display:none; border-top:1px solid var(--line); padding-top:10px; margin-top:10px;">
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <div style="flex:1;">
+              <label style="font-size:10px; text-transform:uppercase; color:var(--muted); letter-spacing:0.05em;">Company</label>
+              <input type="text" id="detail-company" style="width:100%; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:6px 8px; color:var(--text); font-size:13px;" />
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:10px; text-transform:uppercase; color:var(--muted); letter-spacing:0.05em;">Title</label>
+              <input type="text" id="detail-title" style="width:100%; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:6px 8px; color:var(--text); font-size:13px;" />
+            </div>
+          </div>
+          <label style="font-size:10px; text-transform:uppercase; color:var(--muted); letter-spacing:0.05em;">Job Description</label>
+          <textarea id="detail-jd" style="width:100%; height:120px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px; color:var(--text); font-size:12px; resize:vertical; line-height:1.4;" readonly></textarea>
+        </div>
       </div>
       <div class="panel__footer">
         <button class="btn btn--accent" id="btn-tailor-selected" style="width:100%">Tailor Selected</button>
@@ -1277,21 +1315,25 @@
           <div class="source-item__label">Resume</div>
           <div class="source-item__path" id="source-resume-path">Not loaded</div>
           <div class="source-item__status" id="source-resume-status"></div>
+          <textarea id="source-resume-text" placeholder="Resume markdown will load here..."></textarea>
         </div>
         <div class="source-item">
           <div class="source-item__label">Bio</div>
           <div class="source-item__path" id="source-bio-path">Not loaded</div>
           <div class="source-item__status" id="source-bio-status"></div>
+          <textarea id="source-bio-text" placeholder="Bio/background notes will load here..."></textarea>
         </div>
         <div class="source-item">
           <div class="source-item__label">Cover Letter Base</div>
           <div class="source-item__path" id="source-cl-path">Not loaded</div>
           <div class="source-item__status" id="source-cl-status"></div>
+          <textarea id="source-cl-text" placeholder="Optional base cover letter will load here..."></textarea>
         </div>
         <div class="source-item">
           <div class="source-item__label">Resume Supplemental</div>
           <div class="source-item__path" id="source-supp-path">Not loaded</div>
           <div class="source-item__status" id="source-supp-status"></div>
+          <textarea id="source-supp-text" placeholder="Optional supplemental resume details will load here..."></textarea>
         </div>
         <div class="empty-state" id="sources-empty" style="display:none">
           <span class="empty-state__icon">&#x1F4C4;</span>
@@ -1570,15 +1612,185 @@
       jobs: [],              // { id, company, title, jd, stage, status, checked, result, error, _editorData }
       activeJobId: null,
       workspaceName: '',
+      configProviders: [],
+      tailorProvider: 'auto',
       tailorModel: 'auto',
+      scoreProvider: 'auto',
       scoreModel: 'auto',
+      isTailoring: false,
       scoresStale: false,
       viewMode: 'preview',   // 'preview' | 'diff'
       previewTheme: null,
       regeneratingSection: null,
       sourceResume: '',
       sourceBio: '',
+      sourceCoverLetter: '',
+      sourceSupplemental: '',
+      docsLoaded: false,
     };
+
+    function setRunFeedback(message, kind) {
+      const el = document.getElementById('analysis-text');
+      if (!el) return;
+      el.textContent = message || 'Run tailoring to see scores and analysis';
+      el.classList.toggle('analysis-notes__text--empty', !message);
+      el.style.color = kind === 'error' ? '#d98f8f' : '';
+    }
+
+    // ═══════════════════════════════════════════════════════
+    //  AUTO-LOAD SOURCE DOCS
+    // ═══════════════════════════════════════════════════════
+
+    function providerOptionLabel(provider) {
+      return provider?.label || provider?.id || 'Unknown';
+    }
+
+    function configureSelect(selectId, options, selectedValue, fallbackLabel) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      select.innerHTML = '';
+
+      if (!options.length) {
+        const option = document.createElement('option');
+        option.value = 'auto';
+        option.textContent = fallbackLabel;
+        select.appendChild(option);
+        select.value = 'auto';
+        return;
+      }
+
+      options.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value.value;
+        option.textContent = value.label;
+        select.appendChild(option);
+      });
+
+      const allowed = new Set(options.map((option) => option.value));
+      select.value = allowed.has(selectedValue) ? selectedValue : options[0].value;
+    }
+
+    function modelsForProvider(providerId) {
+      const provider = state.configProviders.find((entry) => entry.id === providerId);
+      return provider?.models?.length ? provider.models : (state.configProviders[0]?.models || ['auto']);
+    }
+
+    function defaultModelForProvider(providerId) {
+      const provider = state.configProviders.find((entry) => entry.id === providerId);
+      return provider?.defaultModel || state.configProviders[0]?.defaultModel || 'auto';
+    }
+
+    function syncModelSelects() {
+      const tailorModels = modelsForProvider(state.tailorProvider);
+      configureSelect(
+        'config-tailor-model',
+        tailorModels.map((model) => ({ value: model, label: model === 'auto' ? 'Auto' : model })),
+        tailorModels.includes(state.tailorModel) ? state.tailorModel : defaultModelForProvider(state.tailorProvider),
+        'Auto',
+      );
+      state.tailorModel = document.getElementById('config-tailor-model').value || 'auto';
+
+      const scoringModels = modelsForProvider(state.scoreProvider);
+      configureSelect(
+        'config-scoring-model',
+        scoringModels.map((model) => ({ value: model, label: model === 'auto' ? 'Auto' : model })),
+        scoringModels.includes(state.scoreModel) ? state.scoreModel : defaultModelForProvider(state.scoreProvider),
+        'Auto',
+      );
+      state.scoreModel = document.getElementById('config-scoring-model').value || state.tailorModel || 'auto';
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (!res.ok) throw new Error('Failed to load AI config');
+        const data = await res.json();
+
+        state.configProviders = data.options?.providers || [];
+        state.tailorProvider = data.defaults?.tailoringProvider || state.configProviders[0]?.id || 'auto';
+        state.scoreProvider = data.defaults?.scoringProvider || state.tailorProvider;
+        state.tailorModel = data.defaults?.tailoringModel || data.defaultModel || 'auto';
+        state.scoreModel = data.defaults?.scoringModel || state.tailorModel || 'auto';
+
+        configureSelect(
+          'config-tailor-provider',
+          state.configProviders.map((provider) => ({ value: provider.id, label: providerOptionLabel(provider) })),
+          state.tailorProvider,
+          'No provider',
+        );
+        state.tailorProvider = document.getElementById('config-tailor-provider').value || 'auto';
+
+        configureSelect(
+          'config-scoring-provider',
+          state.configProviders.map((provider) => ({ value: provider.id, label: providerOptionLabel(provider) })),
+          state.scoreProvider,
+          'No provider',
+        );
+        state.scoreProvider = document.getElementById('config-scoring-provider').value || state.tailorProvider || 'auto';
+
+        syncModelSelects();
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
+    }
+
+    function syncSourcePanel(paths) {
+      const sourceMeta = [
+        { key: 'resume', pathId: 'source-resume-path', statusId: 'source-resume-status', textId: 'source-resume-text', value: state.sourceResume },
+        { key: 'bio', pathId: 'source-bio-path', statusId: 'source-bio-status', textId: 'source-bio-text', value: state.sourceBio },
+        { key: 'baseCoverLetter', pathId: 'source-cl-path', statusId: 'source-cl-status', textId: 'source-cl-text', value: state.sourceCoverLetter },
+        { key: 'resumeSupplemental', pathId: 'source-supp-path', statusId: 'source-supp-status', textId: 'source-supp-text', value: state.sourceSupplemental },
+      ];
+
+      let anyLoaded = false;
+      sourceMeta.forEach((entry) => {
+        const pathEl = document.getElementById(entry.pathId);
+        const statusEl = document.getElementById(entry.statusId);
+        const textEl = document.getElementById(entry.textId);
+        const pathValue = paths?.[entry.key];
+        const textValue = entry.value || '';
+
+        if (pathEl) pathEl.textContent = pathValue || 'Not loaded';
+        if (statusEl) statusEl.textContent = textValue ? `Loaded ${textValue.split('\n').length} line(s)` : 'Empty';
+        if (textEl) textEl.value = textValue;
+        if (textValue) anyLoaded = true;
+      });
+
+      const emptyEl = document.getElementById('sources-empty');
+      if (emptyEl) emptyEl.style.display = anyLoaded ? 'none' : '';
+    }
+
+    async function loadSourceDocs() {
+      try {
+        const res = await fetch('/api/workspace/local');
+        if (!res.ok) throw new Error('Failed to load local docs');
+        const data = await res.json();
+        state.sourceResume = data.documents?.resume || '';
+        state.sourceBio = data.documents?.bio || '';
+        state.sourceCoverLetter = data.documents?.baseCoverLetter || '';
+        state.sourceSupplemental = data.documents?.resumeSupplemental || '';
+        state.docsLoaded = true;
+        document.getElementById('config-resume-prompt').value = data.prompts?.resumeSystem || '';
+        document.getElementById('config-cl-prompt').value = data.prompts?.coverLetterSystem || '';
+        document.getElementById('config-scoring-prompt').value = data.prompts?.scoringSystem || '';
+        syncSourcePanel(data.paths || {});
+
+        // Update status indicator
+        const indicator = document.getElementById('docs-status');
+        if (indicator) {
+          indicator.textContent = state.sourceResume ? '● Docs loaded' : '○ No resume found';
+          indicator.style.color = state.sourceResume ? '#6a6' : '#a66';
+        }
+      } catch (e) {
+        console.error('Failed to load source docs:', e);
+        syncSourcePanel({});
+        const indicator = document.getElementById('docs-status');
+        if (indicator) {
+          indicator.textContent = '✗ Doc load failed';
+          indicator.style.color = '#a66';
+        }
+      }
+    }
 
     const STATUS_ICONS = {
       loaded:   '\u2014',   // --
@@ -1607,8 +1819,10 @@
       emptyEl.style.display = 'none';
 
       const checkedCount = state.jobs.filter(j => j.checked).length;
-      tailorBtn.disabled = checkedCount === 0;
-      tailorBtn.textContent = checkedCount > 0
+      tailorBtn.disabled = checkedCount === 0 || state.isTailoring;
+      tailorBtn.textContent = state.isTailoring
+        ? 'Tailoring...'
+        : checkedCount > 0
         ? `Tailor Selected (${checkedCount})`
         : 'Tailor Selected';
 
@@ -1647,12 +1861,37 @@
           if (e.target === checkbox) return;
           state.activeJobId = jobId;
           renderJobList();
+          renderJobDetail();
+          renderScoreCards();
           renderEditor();
           renderPreviewPanel();
           renderMissingKeywords();
         });
       });
     }
+
+    // ═══════════════════════════════════════════════════════
+    //  JOB DETAIL (view/edit company, title, JD)
+    // ═══════════════════════════════════════════════════════
+
+    function renderJobDetail() {
+      const detail = document.getElementById('job-detail');
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      if (!job) { detail.style.display = 'none'; return; }
+
+      detail.style.display = '';
+      document.getElementById('detail-company').value = job.company || '';
+      document.getElementById('detail-title').value = job.title || '';
+      document.getElementById('detail-jd').value = job.jd || '';
+    }
+
+    // Save edits back to state on blur
+    document.addEventListener('change', (e) => {
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      if (!job) return;
+      if (e.target.id === 'detail-company') { job.company = e.target.value; renderJobList(); }
+      if (e.target.id === 'detail-title') { job.title = e.target.value; renderJobList(); }
+    });
 
     // ═══════════════════════════════════════════════════════
     //  LOAD HUNTR JOBS (Agent B)
@@ -1667,8 +1906,8 @@
             id: j.id || sid(),
             company: j.company || '',
             title: j.title || '',
-            jd: j.description || '',
-            stage: j.stage || '',
+            jd: j.descriptionText || j.description || '',
+            stage: j.listName || j.stage || '',
             status: 'loaded',
             checked: false,
             result: null,
@@ -1748,6 +1987,23 @@
     //  EXECUTE BATCH TAILOR (Agent B)
     // ═══════════════════════════════════════════════════════
 
+    function currentAgents() {
+      return {
+        tailoringProvider: state.tailorProvider || 'auto',
+        tailoringModel: state.tailorModel || 'auto',
+        scoringProvider: state.scoreProvider || state.tailorProvider || 'auto',
+        scoringModel: state.scoreModel || state.tailorModel || 'auto',
+      };
+    }
+
+    function currentPromptOverrides() {
+      return {
+        resumeSystem: document.getElementById('config-resume-prompt').value,
+        coverLetterSystem: document.getElementById('config-cl-prompt').value,
+        scoringSystem: document.getElementById('config-scoring-prompt').value,
+      };
+    }
+
     async function executeBatchTailor() {
       const modal = document.getElementById('tailorModal');
       const rows = modal.querySelectorAll('tr[data-confirm-id]');
@@ -1765,30 +2021,42 @@
       // Set checked jobs to pending
       const toTailor = state.jobs.filter(j => j.checked);
       toTailor.forEach(j => { j.status = 'pending'; j.error = null; });
+      state.isTailoring = true;
 
       // Close modal, re-render
       modal.hidden = true;
+      console.info(`Starting tailoring for ${toTailor.length} job(s).`);
+      setRunFeedback(
+        toTailor.length === 1
+          ? `Starting tailoring for ${toTailor[0].company || 'selected job'}...`
+          : `Starting tailoring for ${toTailor.length} selected jobs...`,
+      );
       renderJobList();
 
       let firstCompletedId = null;
+      let completedCount = 0;
 
       // Process each job
       for (const job of toTailor) {
         try {
-          const res = await fetch('/api/tailor', {
+          console.info(`Tailoring started: ${job.company} — ${job.title}`);
+          setRunFeedback(`Tailoring ${job.company || 'Company'} — ${job.title || 'Role'}...`);
+          const res = await fetch('/api/runs/manual', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              agents: currentAgents(),
+              promptOverrides: currentPromptOverrides(),
               input: {
                 resume: state.sourceResume,
                 bio: state.sourceBio,
+                baseCoverLetter: state.sourceCoverLetter,
+                resumeSupplemental: state.sourceSupplemental,
                 jobDescription: job.jd,
                 company: job.company,
                 jobTitle: job.title,
               },
-              models: {
-                tailoringModel: state.tailorModel,
-              },
+              includeScoring: true,
             }),
           });
 
@@ -1801,6 +2069,13 @@
           job.result = result;
           job.error = null;
           job._editorData = null;
+          completedCount++;
+          console.info(`Tailoring complete: ${job.company} — ${job.title}`);
+          setRunFeedback(
+            toTailor.length === 1
+              ? `Tailoring complete for ${job.company || 'selected job'}.`
+              : `Completed ${completedCount}/${toTailor.length}: ${job.company || 'Company'} — ${job.title || 'Role'}.`,
+          );
 
           if (!firstCompletedId) {
             firstCompletedId = job.id;
@@ -1809,18 +2084,31 @@
           console.error(`Tailor failed for ${job.company} - ${job.title}:`, e);
           job.status = 'loaded';
           job.error = e.message || String(e);
+          setRunFeedback(`Tailoring failed for ${job.company || 'Company'} — ${job.title || 'Role'}: ${job.error}`, 'error');
         }
 
         renderJobList();
       }
 
+      state.isTailoring = false;
+      renderJobList();
+
       // Auto-select first completed job and render all panels
       if (firstCompletedId) {
         state.activeJobId = firstCompletedId;
         renderJobList();
+        renderJobDetail();
+        renderScoreCards();
         renderEditor();
         renderPreviewPanel();
         renderMissingKeywords();
+        setRunFeedback(
+          completedCount === toTailor.length
+            ? `Finished tailoring ${completedCount} job${completedCount === 1 ? '' : 's'}.`
+            : `Finished tailoring ${completedCount}/${toTailor.length} job${toTailor.length === 1 ? '' : 's'}.`,
+        );
+      } else {
+        setRunFeedback('Tailoring did not produce a result.', 'error');
       }
     }
 
@@ -2057,7 +2345,11 @@
         .filter(t => hay.includes(t.toLowerCase()))
         .slice(0, 5);
       const partial = (gapAnalysis.partialMatches || [])
-        .filter(p => hay.includes(p.jdTerm.toLowerCase()) || hay.includes(p.resumeTerm.toLowerCase()))
+        .filter(p => {
+          const term = p.jdTerm || p.term || '';
+          const resume = p.resumeTerm || p.evidence || '';
+          return hay.includes(term.toLowerCase()) || hay.includes(resume.toLowerCase());
+        })
         .slice(0, 3);
       return { matched, partial };
     }
@@ -2072,7 +2364,9 @@
         html += `<span class="pill pill--matched">${esc(t)}</span>`;
       });
       partial.forEach(p => {
-        html += `<span class="pill pill--partial">${esc(p.resumeTerm)}\u2248${esc(p.jdTerm)}</span>`;
+        const label = p.resumeTerm || p.evidence || p.term || '?';
+        const jd = p.jdTerm || p.term || '';
+        html += `<span class="pill pill--partial">${esc(label)}\u2248${esc(jd)}</span>`;
       });
       html += '</div>';
       return html;
@@ -2594,6 +2888,67 @@
     }
 
     // ═══════════════════════════════════════════════════════
+    //  SCORE CARDS & ANALYSIS
+    // ═══════════════════════════════════════════════════════
+
+    function renderScoreCards() {
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      const scoreResume = document.getElementById('score-resume');
+      const scoreCover = document.getElementById('score-cover');
+      const scoreAccuracy = document.getElementById('score-accuracy');
+      const analysisText = document.getElementById('analysis-text');
+
+      if (!job?.result?.scorecard) {
+        scoreResume.textContent = '\u2014';
+        scoreResume.className = 'score-card__value score-card__value--empty';
+        scoreCover.textContent = '\u2014';
+        scoreCover.className = 'score-card__value score-card__value--empty';
+        scoreAccuracy.textContent = '\u2014';
+        scoreAccuracy.className = 'score-card__value score-card__value--empty';
+        analysisText.textContent = 'Run tailoring to see scores and analysis';
+        analysisText.className = 'analysis-notes__text analysis-notes__text--empty';
+        return;
+      }
+
+      const sc = job.result.scorecard;
+      const ev = sc.evaluator || {};
+      const h = sc.heuristic || {};
+
+      // Score values
+      const resumeScore = ev.overall ?? h.overall ?? null;
+      const coverScore = ev.hrClarity ?? h.coverLetterSpecificity ?? null;
+      const accuracyScore = ev.factualRisk ?? null;
+
+      function setScore(el, val) {
+        if (val != null) {
+          el.textContent = val;
+          el.className = 'score-card__value' + (val >= 80 ? ' score--good' : val >= 60 ? ' score--ok' : ' score--low');
+        } else {
+          el.textContent = '\u2014';
+          el.className = 'score-card__value score-card__value--empty';
+        }
+      }
+
+      setScore(scoreResume, resumeScore);
+      setScore(scoreCover, coverScore);
+      setScore(scoreAccuracy, accuracyScore);
+
+      // Analysis notes
+      const notes = ev.notes || h.warnings || [];
+      if (notes.length > 0) {
+        analysisText.className = 'analysis-notes__text';
+        analysisText.innerHTML = notes.map(n => '<div style="margin-bottom:6px;">• ' + escHtml(n) + '</div>').join('');
+      }
+
+      // Stale indicator
+      if (state.scoresStale) {
+        [scoreResume, scoreCover, scoreAccuracy].forEach(el => {
+          el.textContent += ' \u2192 ?';
+        });
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
     //  MISSING KEYWORDS (Agent D)
     // ═══════════════════════════════════════════════════════
 
@@ -2812,6 +3167,44 @@
       initPreviewPanel();
       renderJobList();
       renderEditor();
+      loadSourceDocs();
+      loadConfig();
+
+      document.getElementById('source-resume-text').addEventListener('input', (e) => {
+        state.sourceResume = e.target.value;
+        document.getElementById('source-resume-status').textContent = state.sourceResume ? 'Edited locally' : 'Empty';
+      });
+      document.getElementById('source-bio-text').addEventListener('input', (e) => {
+        state.sourceBio = e.target.value;
+        document.getElementById('source-bio-status').textContent = state.sourceBio ? 'Edited locally' : 'Empty';
+      });
+      document.getElementById('source-cl-text').addEventListener('input', (e) => {
+        state.sourceCoverLetter = e.target.value;
+        document.getElementById('source-cl-status').textContent = state.sourceCoverLetter ? 'Edited locally' : 'Empty';
+      });
+      document.getElementById('source-supp-text').addEventListener('input', (e) => {
+        state.sourceSupplemental = e.target.value;
+        document.getElementById('source-supp-status').textContent = state.sourceSupplemental ? 'Edited locally' : 'Empty';
+      });
+
+      document.getElementById('config-tailor-provider').addEventListener('change', (e) => {
+        state.tailorProvider = e.target.value || 'auto';
+        if (state.scoreProvider === 'auto' || !state.configProviders.some((provider) => provider.id === state.scoreProvider)) {
+          state.scoreProvider = state.tailorProvider;
+          document.getElementById('config-scoring-provider').value = state.scoreProvider;
+        }
+        syncModelSelects();
+      });
+      document.getElementById('config-scoring-provider').addEventListener('change', (e) => {
+        state.scoreProvider = e.target.value || state.tailorProvider || 'auto';
+        syncModelSelects();
+      });
+      document.getElementById('config-tailor-model').addEventListener('change', (e) => {
+        state.tailorModel = e.target.value || 'auto';
+      });
+      document.getElementById('config-scoring-model').addEventListener('change', (e) => {
+        state.scoreModel = e.target.value || state.tailorModel || 'auto';
+      });
 
       // Job panel buttons
       document.getElementById('btn-load-huntr').addEventListener('click', () => {

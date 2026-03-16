@@ -83,15 +83,52 @@ export interface HeuristicScorecard {
   warnings: string[];
 }
 
+/** Submission verdict for a scored document. */
+export type ScoreVerdict =
+  | 'strong_submit'
+  | 'submit_after_minor_edits'
+  | 'needs_revision'
+  | 'do_not_submit';
+
+/** Normalized per-document evaluator scorecard. */
+export interface EvaluatorDocumentScorecard {
+  document: string;
+  overall: number;
+  atsCompatibility?: number;
+  keywordCoverage?: number;
+  recruiterClarity?: number;
+  hrClarity?: number;
+  hiringMgrClarity?: number;
+  tailoringAlignment?: number;
+  completionReadiness?: number;
+  evidenceStrength?: number;
+  aiObviousness?: number;
+  factualRisk?: number;
+  confidence?: number;
+  verdict?: ScoreVerdict | string;
+  blockingIssues: string[];
+  notes: string[];
+}
+
 /** Optional evaluator-model review. */
 export interface EvaluatorScorecard {
-  overall: number;
-  atsCompatibility: number;
-  recruiterClarity: number;
-  hrClarity: number;
-  aiObviousness: number;
-  factualRisk: number;
+  /** Primary/legacy summary fields mirrored from the resume or first document. */
+  overall?: number;
+  atsCompatibility?: number;
+  keywordCoverage?: number;
+  recruiterClarity?: number;
+  hrClarity?: number;
+  hiringMgrClarity?: number;
+  tailoringAlignment?: number;
+  completionReadiness?: number;
+  evidenceStrength?: number;
+  aiObviousness?: number;
+  factualRisk?: number;
+  confidence?: number;
+  verdict?: ScoreVerdict | string;
+  blockingIssues?: string[];
   notes: string[];
+  documents: EvaluatorDocumentScorecard[];
   raw?: string;
 }
 

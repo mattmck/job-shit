@@ -13,7 +13,7 @@ import { dirname, join, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir, tmpdir } from 'os';
 import { loadConfig } from './config.js';
-import { describeProvider } from './lib/ai.js';
+import { complete as defaultComplete, describeProvider } from './lib/ai.js';
 import { diffMarkdown } from './lib/diff.js';
 import { normalizeProviderChoice } from './lib/providers.js';
 import {
@@ -92,21 +92,27 @@ interface DiffBody {
 
 interface GapBody {
   resume: string;
+  sourceResume?: string;
+  sourceSupplemental?: string;
   bio?: string;
   jobDescription: string;
   jobTitle?: string;
   useAI?: boolean;
   model?: string;
+  provider?: string;
 }
 
 interface ScoreBody {
   resume: string;
+  sourceResume?: string;
+  sourceSupplemental?: string;
   coverLetter: string;
   jobDescription: string;
   company?: string;
   jobTitle?: string;
   bio?: string;
   model?: string;
+  provider?: string;
 }
 
 interface RegenerateSectionBody {
@@ -576,37 +582,44 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
     const body = await readJsonBody<GapBody>(req);
     if (body.useAI) {
       const config = loadConfig();
+      const preferredProvider = normalizeProviderChoice(body.provider) ?? config.scoringProvider ?? config.tailoringProvider;
       const result = await analyzeGapWithAI(
-        body.resume ?? '',
+        body.sourceResume ?? body.resume ?? '',
         body.bio ?? '',
         body.jobDescription ?? '',
         body.jobTitle,
         body.model ?? config.tailoringModel,
+        (model, systemPrompt, userPrompt, verbose) =>
+          defaultComplete(model, systemPrompt, userPrompt, verbose, { provider: preferredProvider }),
       );
       sendJson(res, 200, result);
       return;
     }
 
-    sendJson(res, 200, analyzeGap(body.resume ?? '', body.jobDescription ?? '', body.jobTitle));
+    sendJson(res, 200, analyzeGap(body.sourceResume ?? body.resume ?? '', body.jobDescription ?? '', body.jobTitle));
     return;
   }
 
   if (method === 'POST' && url.pathname === '/api/score') {
     const body = await readJsonBody<ScoreBody>(req);
     const config = loadConfig();
+    const preferredProvider = normalizeProviderChoice(body.provider) ?? config.scoringProvider ?? config.tailoringProvider;
     const scorecard = await scoreTailoredOutput({
       input: {
-        resume: body.resume,
+        resume: body.sourceResume ?? body.resume,
         bio: body.bio ?? '',
         jobDescription: body.jobDescription,
         company: body.company ?? '',
         jobTitle: body.jobTitle ?? '',
+        resumeSupplemental: body.sourceSupplemental ?? '',
       },
       output: {
         resume: body.resume,
         coverLetter: body.coverLetter,
       },
       scoringModel: body.model ?? config.scoringModel,
+      complete: (model, systemPrompt, userPrompt, verbose) =>
+        defaultComplete(model, systemPrompt, userPrompt, verbose, { provider: preferredProvider }),
     });
     sendJson(res, 200, scorecard);
     return;

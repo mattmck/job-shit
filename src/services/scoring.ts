@@ -1,6 +1,7 @@
 import { complete as defaultComplete } from '../lib/ai.js';
 import { scoringSystemPrompt } from '../lib/prompts.js';
 import {
+  EvaluatorDocumentScorecard,
   EvaluatorScorecard,
   HeuristicScorecard,
   PromptOverrides,
@@ -37,6 +38,12 @@ function clamp(value: number, min = 0, max = 100): number {
 function average(values: number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function asOptionalScore(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? clamp(num) : undefined;
 }
 
 function extractKeywords(text: string): string[] {
@@ -162,24 +169,106 @@ export function buildHeuristicScorecard(input: TailorInput, output: TailorOutput
   };
 }
 
-function extractJsonObject(raw: string): string {
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) {
-    throw new Error('Evaluator did not return a JSON object.');
+function extractJsonPayload(raw: string): string {
+  const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    return trimmed;
   }
-  return match[0];
+
+  const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    return arrayMatch[0];
+  }
+
+  const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    return objectMatch[0];
+  }
+
+  throw new Error('Evaluator did not return JSON.');
+}
+
+function normalizeDocumentName(value: unknown, fallback: string): string {
+  const raw = String(value ?? fallback).trim();
+  const normalized = raw.toLowerCase().replace(/[_-]+/g, ' ');
+  if (normalized === 'resume') return 'resume';
+  if (normalized === 'cover letter' || normalized === 'coverletter') return 'cover letter';
+  return raw || fallback;
+}
+
+function coerceStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => String(entry).trim()).filter(Boolean);
+}
+
+function parseDocumentScorecard(
+  parsed: Record<string, unknown>,
+  index: number,
+): EvaluatorDocumentScorecard {
+  const fallbackDocument = index === 0 ? 'resume' : index === 1 ? 'cover letter' : `document ${index + 1}`;
+  return {
+    document: normalizeDocumentName(parsed.document, fallbackDocument),
+    overall: clamp(Number(parsed.overall ?? 0)),
+    atsCompatibility: asOptionalScore(parsed.atsCompatibility),
+    keywordCoverage: asOptionalScore(parsed.keywordCoverage),
+    recruiterClarity: asOptionalScore(parsed.recruiterClarity),
+    hrClarity: asOptionalScore(parsed.hrClarity),
+    hiringMgrClarity: asOptionalScore(parsed.hiringMgrClarity),
+    tailoringAlignment: asOptionalScore(parsed.tailoringAlignment),
+    completionReadiness: asOptionalScore(parsed.completionReadiness),
+    evidenceStrength: asOptionalScore(parsed.evidenceStrength),
+    aiObviousness: asOptionalScore(parsed.aiObviousness),
+    factualRisk: asOptionalScore(parsed.factualRisk),
+    confidence: asOptionalScore(parsed.confidence),
+    verdict: parsed.verdict ? String(parsed.verdict) : undefined,
+    blockingIssues: coerceStringArray(parsed.blockingIssues),
+    notes: coerceStringArray(parsed.notes),
+  };
+}
+
+function primaryDocumentSummary(documents: EvaluatorDocumentScorecard[]): EvaluatorDocumentScorecard | undefined {
+  return documents.find((doc) => doc.document.toLowerCase() === 'resume') ?? documents[0];
+}
+
+function legacyDocumentFromObject(parsed: Record<string, unknown>): EvaluatorDocumentScorecard {
+  return parseDocumentScorecard({
+    document: 'review',
+    ...parsed,
+  }, 0);
 }
 
 function parseEvaluatorScorecard(raw: string): EvaluatorScorecard {
-  const parsed = JSON.parse(extractJsonObject(raw)) as Partial<EvaluatorScorecard>;
+  const payload = JSON.parse(extractJsonPayload(raw)) as unknown;
+  const documents = Array.isArray(payload)
+    ? payload
+      .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+      .map((entry, index) => parseDocumentScorecard(entry, index))
+    : (typeof payload === 'object' && payload !== null
+      ? [legacyDocumentFromObject(payload as Record<string, unknown>)]
+      : []);
+
+  if (documents.length === 0) {
+    throw new Error('Evaluator returned no score documents.');
+  }
+
+  const primary = primaryDocumentSummary(documents);
   return {
-    overall: clamp(parsed.overall ?? 0),
-    atsCompatibility: clamp(parsed.atsCompatibility ?? 0),
-    recruiterClarity: clamp(parsed.recruiterClarity ?? 0),
-    hrClarity: clamp(parsed.hrClarity ?? 0),
-    aiObviousness: clamp(parsed.aiObviousness ?? 0),
-    factualRisk: clamp(parsed.factualRisk ?? 0),
-    notes: Array.isArray(parsed.notes) ? parsed.notes.map(String) : [],
+    overall: primary?.overall,
+    atsCompatibility: primary?.atsCompatibility,
+    keywordCoverage: primary?.keywordCoverage,
+    recruiterClarity: primary?.recruiterClarity,
+    hrClarity: primary?.hrClarity,
+    hiringMgrClarity: primary?.hiringMgrClarity,
+    tailoringAlignment: primary?.tailoringAlignment,
+    completionReadiness: primary?.completionReadiness,
+    evidenceStrength: primary?.evidenceStrength,
+    aiObviousness: primary?.aiObviousness,
+    factualRisk: primary?.factualRisk,
+    confidence: primary?.confidence,
+    verdict: primary?.verdict,
+    blockingIssues: primary?.blockingIssues ?? [],
+    notes: primary?.notes ?? [],
+    documents,
     raw,
   };
 }

@@ -42,16 +42,45 @@ describe('buildHeuristicScorecard', () => {
 });
 
 describe('evaluateScorecard', () => {
-  it('parses evaluator JSON from the model response', async () => {
-    const mockComplete = vi.fn().mockResolvedValue(`{
-      "overall": 84,
-      "atsCompatibility": 81,
-      "recruiterClarity": 86,
-      "hrClarity": 80,
-      "aiObviousness": 78,
-      "factualRisk": 90,
-      "notes": ["Strong alignment with the role.", "Could use one more product outcome."]
-    }`);
+  it('parses evaluator JSON arrays from the model response', async () => {
+    const mockComplete = vi.fn().mockResolvedValue(`[
+      {
+        "document": "resume",
+        "overall": 84,
+        "atsCompatibility": 81,
+        "keywordCoverage": 77,
+        "recruiterClarity": 86,
+        "hrClarity": 80,
+        "hiringMgrClarity": 82,
+        "tailoringAlignment": 85,
+        "completionReadiness": 88,
+        "evidenceStrength": 83,
+        "aiObviousness": 78,
+        "factualRisk": 90,
+        "confidence": 87,
+        "verdict": "submit_after_minor_edits",
+        "blockingIssues": [],
+        "notes": ["Strong alignment with the role.", "Could use one more product outcome."]
+      },
+      {
+        "document": "cover letter",
+        "overall": 79,
+        "atsCompatibility": 75,
+        "keywordCoverage": 74,
+        "recruiterClarity": 80,
+        "hrClarity": 78,
+        "hiringMgrClarity": 79,
+        "tailoringAlignment": 81,
+        "completionReadiness": 82,
+        "evidenceStrength": 75,
+        "aiObviousness": 76,
+        "factualRisk": 84,
+        "confidence": 82,
+        "verdict": "submit_after_minor_edits",
+        "blockingIssues": [],
+        "notes": ["Specific opening.", "Could be more concrete."]
+      }
+    ]`);
 
     const scorecard = await evaluateScorecard(
       input,
@@ -63,7 +92,34 @@ describe('evaluateScorecard', () => {
     );
 
     expect(scorecard.overall).toBe(84);
+    expect(scorecard.documents).toHaveLength(2);
+    expect(scorecard.documents[1]?.document).toBe('cover letter');
     expect(scorecard.notes).toHaveLength(2);
+  });
+
+  it('falls back to a single legacy review document when the evaluator returns an object', async () => {
+    const mockComplete = vi.fn().mockResolvedValue(`{
+      "overall": 72,
+      "atsCompatibility": 70,
+      "recruiterClarity": 75,
+      "hrClarity": 71,
+      "aiObviousness": 68,
+      "factualRisk": 77,
+      "notes": ["Reasonable fit.", "Needs stronger examples."]
+    }`);
+
+    const scorecard = await evaluateScorecard(
+      input,
+      output,
+      'gpt-4o-mini',
+      undefined,
+      false,
+      mockComplete,
+    );
+
+    expect(scorecard.documents).toHaveLength(1);
+    expect(scorecard.documents[0]?.document).toBe('review');
+    expect(scorecard.overall).toBe(72);
   });
 });
 

@@ -106,6 +106,16 @@
       border-color: #a54532;
     }
 
+    .btn--success {
+      background: #3a7d56;
+      border-color: #3a7d56;
+      color: #fff;
+    }
+    .btn--success:hover {
+      background: #2d6344;
+      border-color: #2d6344;
+    }
+
     .btn--danger {
       color: #c55;
     }
@@ -1317,7 +1327,8 @@
             </div>
           </div>
           <label style="font-size:10px; text-transform:uppercase; color:var(--muted); letter-spacing:0.05em;">Job Description</label>
-          <textarea id="detail-jd" style="width:100%; height:120px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px; color:var(--text); font-size:12px; resize:vertical; line-height:1.4;" readonly></textarea>
+          <textarea id="detail-jd" style="width:100%; height:120px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px; color:var(--text); font-size:12px; resize:vertical; line-height:1.4;"></textarea>
+          <button class="btn btn--success" id="btn-mark-reviewed" style="width:100%; margin-top:8px; display:none;">Mark Reviewed</button>
         </div>
       </div>
       <div class="panel__footer">
@@ -1628,6 +1639,7 @@
       scoreModel: 'auto',
       isTailoring: false,
       scoresStale: false,
+      activeDoc: 'resume',   // 'resume' | 'cover'
       viewMode: 'preview',   // 'preview' | 'diff'
       previewTheme: null,
       regeneratingSection: null,
@@ -1894,6 +1906,20 @@
       document.getElementById('detail-company').value = job.company || '';
       document.getElementById('detail-title').value = job.title || '';
       document.getElementById('detail-jd').value = job.jd || '';
+
+      // Show Mark Reviewed button only for tailored jobs
+      const reviewBtn = document.getElementById('btn-mark-reviewed');
+      if (job.status === 'tailored') {
+        reviewBtn.style.display = '';
+        reviewBtn.textContent = 'Mark Reviewed \u2713';
+      } else if (job.status === 'reviewed') {
+        reviewBtn.style.display = '';
+        reviewBtn.textContent = 'Reviewed \u2713';
+        reviewBtn.disabled = true;
+      } else {
+        reviewBtn.style.display = 'none';
+        reviewBtn.disabled = false;
+      }
     }
 
     // Save edits back to state on blur
@@ -1902,6 +1928,7 @@
       if (!job) return;
       if (e.target.id === 'detail-company') { job.company = e.target.value; renderJobList(); }
       if (e.target.id === 'detail-title') { job.title = e.target.value; renderJobList(); }
+      if (e.target.id === 'detail-jd') { job.jd = e.target.value; }
     });
 
     // ═══════════════════════════════════════════════════════
@@ -2387,6 +2414,12 @@
     // ── Editor rendering ──
     function renderEditor() {
       const el = document.getElementById('editorSections');
+
+      if (state.activeDoc === 'cover') {
+        renderCoverLetterEditor(el);
+        return;
+      }
+
       const data = getEditorData();
       if (!data) {
         el.innerHTML = '<div class="editor-empty">Select a tailored job to start reviewing.</div>';
@@ -2402,6 +2435,31 @@
       addBtn.className = 'editor-add-section';
       addBtn.innerHTML = '<button class="add-btn" onclick="editorAddSection()">+ Add Section</button>';
       el.appendChild(addBtn);
+    }
+
+    function renderCoverLetterEditor(el) {
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      const cl = job?.result?.output?.coverLetter || '';
+      if (!cl) {
+        el.innerHTML = '<div class="editor-empty">No cover letter yet. Run tailoring to generate one.</div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="section-block">
+          <div class="section-header">
+            <span class="section-title meta">Cover Letter</span>
+            <span style="font-size:11px; color:var(--muted);">${cl.split('\n').length} lines</span>
+          </div>
+          <textarea id="cl-editor-textarea" style="width:100%; min-height:400px; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:12px; color:var(--text); font-size:13px; line-height:1.6; resize:vertical; font-family:inherit;">${esc(cl)}</textarea>
+        </div>`;
+      const ta = document.getElementById('cl-editor-textarea');
+      ta.addEventListener('input', () => {
+        if (job.result && job.result.output) {
+          job.result.output.coverLetter = ta.value;
+          state.scoresStale = true;
+          renderPreviewPanel();
+        }
+      });
     }
 
     function makeHeaderBlock(data) {
@@ -2753,6 +2811,12 @@
 
     function renderPreviewPanel() {
       const content = document.getElementById('previewContent');
+
+      if (state.activeDoc === 'cover') {
+        renderCoverLetterPreview(content);
+        return;
+      }
+
       const data = getEditorData();
 
       if (!data) {
@@ -2840,7 +2904,11 @@
     async function renderDiffPanel() {
       const content = document.getElementById('previewContent');
       const job = state.jobs.find(j => j.id === state.activeJobId);
-      if (!job?.result?.output?.resume) {
+      const isCover = state.activeDoc === 'cover';
+      const before = isCover ? (state.sourceCoverLetter || '') : state.sourceResume;
+      const after = isCover ? (job?.result?.output?.coverLetter || '') : (job?.result?.output?.resume || '');
+
+      if (!after) {
         content.innerHTML = '<div class="preview-empty">No diff available.</div>';
         return;
       }
@@ -2849,13 +2917,12 @@
         const res = await fetch('/api/diff', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ before: state.sourceResume, after: job.result.output.resume }),
+          body: JSON.stringify({ before, after }),
         });
         const diff = await res.json();
         content.innerHTML = renderDiffHtml(diff);
       } catch (e) {
-        // Fallback: client-side line diff
-        content.innerHTML = renderClientDiffHtml(state.sourceResume, job.result.output.resume);
+        content.innerHTML = renderClientDiffHtml(before, after);
       }
     }
 
@@ -2897,6 +2964,27 @@
       }
       html += '</div></div>';
       return html;
+    }
+
+    function renderCoverLetterPreview(content) {
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      const cl = job?.result?.output?.coverLetter || '';
+      if (!cl) {
+        content.innerHTML = '<div class="preview-empty">No cover letter to preview.</div>';
+        return;
+      }
+      // Simple markdown-to-HTML for cover letter (paragraphs, bold, italic)
+      const html = cl.split('\n\n').map(para => {
+        const escaped = esc(para.trim());
+        if (!escaped) return '';
+        const formatted = escaped
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/\n/g, '<br>');
+        return '<p>' + formatted + '</p>';
+      }).filter(Boolean).join('\n');
+      content.innerHTML = '<div class="preview-render cover-letter-preview" style="padding:24px; line-height:1.7; font-size:14px;">' + html + '</div>';
+      if (state.previewTheme) applyPreviewTheme(state.previewTheme);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -2998,16 +3086,28 @@
     // ═══════════════════════════════════════════════════════
 
     async function copyToClipboard(format, btnEl) {
-      const data = getEditorData();
-      if (!data) return;
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      const isCover = state.activeDoc === 'cover';
       let textContent;
-      if (format === 'md') {
-        textContent = toMarkdown(data);
-      } else if (format === 'html') {
-        const el = document.querySelector('.preview-render');
-        textContent = el ? el.innerHTML : '';
+
+      if (isCover) {
+        const cl = job?.result?.output?.coverLetter || '';
+        if (!cl) return;
+        if (format === 'md') {
+          textContent = cl;
+        } else if (format === 'html') {
+          const el = document.querySelector('.preview-render');
+          textContent = el ? el.innerHTML : '';
+        } else { return; }
       } else {
-        return; // PDF copy not supported
+        const data = getEditorData();
+        if (!data) return;
+        if (format === 'md') {
+          textContent = toMarkdown(data);
+        } else if (format === 'html') {
+          const el = document.querySelector('.preview-render');
+          textContent = el ? el.innerHTML : '';
+        } else { return; }
       }
 
       try {
@@ -3027,44 +3127,78 @@
     }
 
     async function downloadFile(format) {
-      const data = getEditorData();
-      if (!data) return;
+      const job = state.jobs.find(j => j.id === state.activeJobId);
+      const isCover = state.activeDoc === 'cover';
+      const slug = (job?.company || 'untitled').toLowerCase().replace(/\s+/g, '-');
       let content, filename, mime;
 
-      if (format === 'md') {
-        content = toMarkdown(data);
-        filename = 'resume.md';
-        mime = 'text/markdown';
-      } else if (format === 'html') {
-        const el = document.querySelector('.preview-render');
-        content = el ? el.outerHTML : '';
-        filename = 'resume.html';
-        mime = 'text/html';
-      } else if (format === 'pdf') {
-        // Use server-side PDF rendering
-        const job = state.jobs.find(j => j.id === state.activeJobId);
-        const md = toMarkdown(data);
-        try {
-          const res = await fetch('/api/export/pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ kind: 'resume', markdown: md, title: job?.title || 'Resume' }),
-          });
-          if (res.ok) {
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `resume-${(job?.company || 'untitled').toLowerCase().replace(/\s+/g, '-')}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }
-        } catch (e) { console.error('PDF export failed:', e); }
-        return;
+      if (isCover) {
+        const cl = job?.result?.output?.coverLetter || '';
+        if (!cl) return;
+        if (format === 'md') {
+          content = cl;
+          filename = `cover-letter-${slug}.md`;
+          mime = 'text/markdown';
+        } else if (format === 'html') {
+          const el = document.querySelector('.preview-render');
+          content = el ? el.outerHTML : '';
+          filename = `cover-letter-${slug}.html`;
+          mime = 'text/html';
+        } else if (format === 'pdf') {
+          try {
+            const res = await fetch('/api/export/pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kind: 'cover-letter', markdown: cl, title: job?.title || 'Cover Letter' }),
+            });
+            if (res.ok) {
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `cover-letter-${slug}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }
+          } catch (e) { console.error('PDF export failed:', e); }
+          return;
+        } else { return; }
       } else {
-        return;
+        const data = getEditorData();
+        if (!data) return;
+        if (format === 'md') {
+          content = toMarkdown(data);
+          filename = `resume-${slug}.md`;
+          mime = 'text/markdown';
+        } else if (format === 'html') {
+          const el = document.querySelector('.preview-render');
+          content = el ? el.outerHTML : '';
+          filename = `resume-${slug}.html`;
+          mime = 'text/html';
+        } else if (format === 'pdf') {
+          const md = toMarkdown(data);
+          try {
+            const res = await fetch('/api/export/pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kind: 'resume', markdown: md, title: job?.title || 'Resume' }),
+            });
+            if (res.ok) {
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `resume-${slug}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }
+          } catch (e) { console.error('PDF export failed:', e); }
+          return;
+        } else { return; }
       }
 
       const blob = new Blob([content], { type: mime });
@@ -3189,6 +3323,27 @@
       // Copy buttons
       document.querySelectorAll('.btn-copy[data-copy]').forEach(btn => {
         btn.addEventListener('click', () => copyToClipboard(btn.dataset.copy, btn));
+      });
+    }
+
+    function initDocTabs() {
+      const tabResume = document.getElementById('tab-resume');
+      const tabCover = document.getElementById('tab-cover');
+
+      tabResume.addEventListener('click', () => {
+        state.activeDoc = 'resume';
+        tabResume.classList.add('active');
+        tabCover.classList.remove('active');
+        renderEditor();
+        renderPreviewPanel();
+      });
+
+      tabCover.addEventListener('click', () => {
+        state.activeDoc = 'cover';
+        tabCover.classList.add('active');
+        tabResume.classList.remove('active');
+        renderEditor();
+        renderPreviewPanel();
       });
     }
 
@@ -3397,6 +3552,7 @@
       initSplitter();
       initIconRail();
       initPreviewPanel();
+      initDocTabs();
       renderJobList();
       renderEditor();
       loadSourceDocs();
@@ -3464,6 +3620,15 @@
 
       document.getElementById('btn-paste-jd').addEventListener('click', () => {
         addManualJob();
+      });
+
+      document.getElementById('btn-mark-reviewed').addEventListener('click', () => {
+        const job = state.jobs.find(j => j.id === state.activeJobId);
+        if (job && job.status === 'tailored') {
+          job.status = 'reviewed';
+          renderJobList();
+          renderJobDetail();
+        }
       });
 
       document.getElementById('btn-tailor-selected').addEventListener('click', () => {

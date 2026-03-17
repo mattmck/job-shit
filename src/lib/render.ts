@@ -32,7 +32,47 @@ function looksLikeDate(html: string): boolean {
     allowedTags: [],
     allowedAttributes: {},
   }).trim();
-  return /^\d{4}/.test(text);
+  // Starts with 4-digit year: "2024 - Present"
+  if (/^\d{4}/.test(text)) return true;
+  // Starts with month name/abbreviation: "Sep '24 - Sep '25"
+  if (/^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/i.test(text)) return true;
+  // Contains month+year pattern anywhere (for "Remote | Sep '24" format)
+  if (/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+[''']?\d{2,4}/i.test(text)) return true;
+  // Contains year range: "'09 - '17", "2019 - 2021", "2019 – Present"
+  // Use lookbehind/lookahead to avoid matching phone numbers like 123-4567
+  if (/(?<!\d)[''']?\d{2}(?:\d{2})?\s*[-–—]\s*(?:[''']?\d{2}(?:\d{2})?|[Pp]resent|[Cc]urrent)(?!\d)/i.test(text)) return true;
+  return false;
+}
+
+/** Determine if a pipe-separated segment looks like a date vs a location. */
+function isDateSegment(text: string): boolean {
+  const t = text.trim();
+  if (/^\d{4}/.test(t)) return true;
+  if (/^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i.test(t)) return true;
+  if (/(?<!\d)[''']?\d{2}(?:\d{2})?\s*[-–—]\s*(?:[''']?\d{2}(?:\d{2})?|present|current)(?!\d)/i.test(t)) return true;
+  return false;
+}
+
+function looksLikeJobTitle(text: string): boolean {
+  return /\b(?:engineer|developer|architect|manager|director|lead|principal|senior|staff|junior|intern|analyst|consultant|designer|scientist|administrator|coordinator|specialist|vp|chief|head|officer)\b/i.test(text.trim());
+}
+
+/**
+ * Split a date/location line (e.g. "Sep '24 - Sep '25 | Remote") into parts.
+ * Returns { date, location } where location may be empty.
+ */
+function splitDateLocation(text: string): { date: string; location: string } {
+  if (!text.includes('|')) return { date: text.trim(), location: '' };
+  const parts = text.split('|').map(s => s.trim()).filter(Boolean);
+  if (parts.length === 1) return { date: parts[0], location: '' };
+  const dateIdx = parts.findIndex(p => isDateSegment(p));
+  if (dateIdx >= 0) {
+    const date = parts[dateIdx];
+    const locationParts = parts.filter((_, i) => i !== dateIdx);
+    return { date, location: locationParts.join(' | ') };
+  }
+  // Fallback: first part is date
+  return { date: parts[0], location: parts.slice(1).join(' | ') };
 }
 
 /** Escape special HTML characters in a plain-text string. */
@@ -124,41 +164,64 @@ function sanitizeHtml(html: string): string {
 // Job heading parser — extracts title, company, location from h3 text
 // Handles pipe format (preferred) and common AI fallback formats
 
-interface JobHeading { title: string; company: string; location: string; }
+interface JobHeading { title: string; company: string; location: string; dates: string; }
 
 function parseJobHeading(text: string): JobHeading {
-  // Preferred: "Title | Company | Location"
-  const pipeParts = text.split(/\s+\|\s+/).map(s => s.trim()).filter(Boolean);
+  // Pipe-separated: "Title | Company | Location | Dates" or "Title | Company | Location" or "Title | Company"
+  const pipeParts = text.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean);
+  if (pipeParts.length >= 4) {
+    // Detect which trailing parts are dates vs location
+    const tail = pipeParts.slice(2);
+    const dateIdx = tail.findIndex(p => isDateSegment(p));
+    if (dateIdx >= 0) {
+      const dates = tail[dateIdx];
+      const locationParts = tail.filter((_, i) => i !== dateIdx);
+      return { title: pipeParts[0], company: pipeParts[1], location: locationParts.join(' | '), dates };
+    }
+    return { title: pipeParts[0], company: pipeParts[1], location: tail.join(' | '), dates: '' };
+  }
   if (pipeParts.length >= 2) {
-    return { title: pipeParts[0], company: pipeParts[1], location: pipeParts[2] ?? '' };
+    return { title: pipeParts[0], company: pipeParts[1], location: pipeParts[2] ?? '', dates: '' };
   }
 
-  // Fallback: "Title — Company (dates)" or "Title – Company (dates)"
-  // Strip trailing parenthesized content (dates the AI jammed in)
-  const stripped = text.replace(/\s*\([^)]*\)\s*$/, '').trim();
-  const dashMatch = stripped.match(/^(.+?)\s+[—–-]{1,2}\s+(.+)$/);
+  // Fallback: "Company — Title (dates) - Location" or similar dash formats
+  // Extract parenthesized dates (may not be at end if location follows)
+  const parenDateMatch = text.match(/\s*\(([^)]*\d{2,4}[^)]*)\)\s*/);
+  const datesInParens = parenDateMatch?.[1] ?? '';
+  const stripped = text.replace(/\s*\([^)]*\)\s*/, ' ').trim();
+  // After removing parens, check for trailing " - Location" (dash with spaces)
+  const trailingLocMatch = stripped.match(/\s+-\s+(.+)$/);
+  const trailingLoc = trailingLocMatch?.[1]?.trim() ?? '';
+  const strippedNoLoc = trailingLocMatch ? stripped.replace(trailingLocMatch[0], '').trim() : stripped;
+  const dashMatch = strippedNoLoc.match(/^(.+?)\s+[—–-]{1,2}\s+(.+)$/);
   if (dashMatch) {
     const [, title, rest] = dashMatch;
-    // rest might be "Company, City, ST" or "Company, Location" or just "Company"
     const restParts = rest.split(',').map(s => s.trim());
+    const location = trailingLoc || '';
     if (restParts.length >= 3 && restParts[restParts.length - 1].length <= 3) {
-      // "Acme, San Francisco, CA" → company="Acme", location="San Francisco, CA"
-      return { title: title.trim(), company: restParts[0], location: restParts.slice(1).join(', ') };
+      return { title: title.trim(), company: restParts[0], location: location || restParts.slice(1).join(', '), dates: datesInParens };
     }
     if (restParts.length >= 2) {
-      return { title: title.trim(), company: restParts.slice(0, -1).join(', '), location: restParts[restParts.length - 1] };
+      return { title: title.trim(), company: restParts.slice(0, -1).join(', '), location: location || restParts[restParts.length - 1], dates: datesInParens };
     }
-    return { title: title.trim(), company: rest.trim(), location: '' };
+    return { title: title.trim(), company: rest.trim(), location, dates: datesInParens };
   }
 
-  // Fallback: "Title at Company" or "Title, Company"
+  // Fallback: "Title at Company"
   const atMatch = stripped.match(/^(.+?)\s+at\s+(.+)$/i);
   if (atMatch) {
-    return { title: atMatch[1].trim(), company: atMatch[2].trim(), location: '' };
+    return { title: atMatch[1].trim(), company: atMatch[2].trim(), location: '', dates: datesInParens };
   }
 
-  // No pattern matched — just a plain title
-  return { title: text, company: '', location: '' };
+  return { title: text, company: '', location: '', dates: '' };
+}
+
+/** Swap title/company if company looks like a job title but title doesn't */
+function normalizeJobHeading(h: JobHeading): JobHeading {
+  if (looksLikeJobTitle(h.company) && !looksLikeJobTitle(h.title)) {
+    return { ...h, title: h.company, company: h.title };
+  }
+  return h;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,12 +267,23 @@ function makeRenderer() {
       if (depth === 3) {
         prefix = closeJobSection();
         state.inJobSection = true;
-        state.prevToken = 'h3';
-        const parsed = parseJobHeading(text);
+        const parsed = normalizeJobHeading(parseJobHeading(text));
         state.pendingJobLocation = parsed.location;
         const titleHtml = escapeHtml(parsed.title);
         const companyHtml = parsed.company ? `<span class="job-company">${escapeHtml(parsed.company)}</span>` : '';
-        return `${prefix}<div class="job-section">\n<div class="job-header">\n<h3>${titleHtml}</h3>\n${companyHtml}\n</div>\n`;
+        let result = `${prefix}<div class="job-section">\n<div class="job-header">\n<h3>${titleHtml}</h3>\n${companyHtml}\n</div>\n`;
+        // If dates were embedded in the heading (4-pipe or parens format), emit them now
+        if (parsed.dates) {
+          const locationHtml = parsed.location
+            ? `<span class="job-location">${escapeHtml(parsed.location)}</span>`
+            : '';
+          result += `<div class="job-header job-sub">\n<p class="date">${escapeHtml(parsed.dates)}</p>\n${locationHtml}\n</div>\n`;
+          state.pendingJobLocation = '';
+          state.prevToken = 'date';
+        } else {
+          state.prevToken = 'h3';
+        }
+        return result;
       }
       
       state.prevToken = `h${depth}`;
@@ -220,6 +294,16 @@ function makeRenderer() {
       const inline = tokens ? this.parser.parseInline(tokens) : text;
       const prev = state.prevToken;
       if (prev === 'role-h2') {
+        // If contact + links are joined by soft break (trailing spaces in markdown), split them
+        // Check both inline HTML (<br>) and raw text (\n) for line breaks
+        const breakPattern = /<br\s*\/?>|\n/;
+        if (breakPattern.test(inline)) {
+          const parts = inline.split(breakPattern).map(s => s.trim()).filter(Boolean);
+          if (parts.length >= 2) {
+            state.prevToken = 'links';
+            return `<p class="contact">${parts[0]}</p>\n<p class="links">${parts.slice(1).join('<br>')}</p>\n`;
+          }
+        }
         state.prevToken = 'contact';
         return `<p class="contact">${inline}</p>\n`;
       }
@@ -229,11 +313,21 @@ function makeRenderer() {
       }
       if (prev === 'h3' && looksLikeDate(text)) {
         state.prevToken = 'date';
-        const locationHtml = state.pendingJobLocation
-          ? `<span class="job-location">${escapeHtml(state.pendingJobLocation)}</span>`
-          : '';
+        let dateHtml: string;
+        let location = state.pendingJobLocation;
+        // Extract location from date line when pipe-separated (e.g. "Remote | Sep '24 - Sep '25")
+        if (!location && text.includes('|')) {
+          const { date, location: loc } = splitDateLocation(text);
+          dateHtml = escapeHtml(date);
+          location = loc;
+        } else {
+          dateHtml = inline;
+        }
         state.pendingJobLocation = '';
-        return `<div class="job-header job-sub">\n<p class="date">${inline}</p>\n${locationHtml}\n</div>\n`;
+        const locationHtml = location
+          ? `<span class="job-location">${escapeHtml(location)}</span>`
+          : '';
+        return `<div class="job-header job-sub">\n<p class="date">${dateHtml}</p>\n${locationHtml}\n</div>\n`;
       }
       state.prevToken = 'p';
       return `<p>${inline}</p>\n`;

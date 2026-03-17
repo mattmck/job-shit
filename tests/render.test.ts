@@ -207,6 +207,38 @@ describe('normalizeContactLinks / isUrlLike', () => {
     expect(html).toContain('<span class="job-company">Acme Corp</span>');
   });
 
+  it('renders month-abbreviated date lines with correct class', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Principal Software Engineer | Oracle\nSep '24 - Sep '25 | Remote\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('class="date"');
+    expect(html).toMatch(/Sep.+24 - Sep.+25/);
+    expect(html).toContain('<span class="job-location">Remote</span>');
+  });
+
+  it('extracts location when date line has location first: "Columbia, MD | 2019 - 2021"', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Senior Engineer | Tenable\nColumbia, MD | 2019 - 2021\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('class="date"');
+    expect(html).toContain('2019 - 2021');
+    expect(html).toContain('<span class="job-location">Columbia, MD</span>');
+  });
+
+  it('handles 4-pipe heading: "Title | Company | Location | Dates"', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Principal Software Engineer | Oracle | Remote | Sep '24 - Sep '25\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('<span class="job-company">Oracle</span>');
+    expect(html).toContain('<span class="job-location">Remote</span>');
+    expect(html).toContain('class="date"');
+    expect(html).toMatch(/Sep.+24 - Sep.+25/);
+  });
+
+  it('renders apostrophe-only year range as date: "\'09 - \'17"', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Engineer | JHUAPL\nLaurel, MD | '09 - '17\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('class="date"');
+    expect(html).toContain('<span class="job-location">Laurel, MD</span>');
+  });
+
   it('does NOT count ### headings toward the h2 stop-linkify threshold', () => {
     // If ### incorrectly incremented h2Count, linkification would stop
     // too early and the contact link below would not be wrapped in <a>.

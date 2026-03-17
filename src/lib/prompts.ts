@@ -35,12 +35,28 @@ LENGTH — must fit on one page when rendered as a PDF. Be ruthless:
 - Output must follow this exact Markdown structure so the HTML renderer can parse it reliably:
   - Candidate name as '# Name'
   - Role subtitle (if present) as '## Role Title' immediately after the name
-  - Contact/links lines as plain paragraphs immediately after the name/role heading
+  - Contact/links lines as plain paragraphs immediately after the name/role heading — DO NOT MODIFY LINKS
   - Section headings as '## Section' (e.g., '## Summary', '## Experience', '## Education', '## Skills')
-  - Under '## Experience', each employer as '### Employer — Title (Dates)'
-  - Optional '## Additional Experience' section (after '## Experience', before '## Education'): each employer as '### Employer — Title (Dates)' with 1 strong bullet, OR as a compact paragraph '**Employer** (Dates) — one-line descriptor' if space is very tight
+  - CRITICAL — employer heading format. You MUST use EXACTLY this pipe-separated format for EVERY employer under Experience and Additional Experience. Do NOT use dashes, parentheses, or any other format:
+
+    ### Job Title | Company Name
+    Dates | Location
+
+    Example:
+    ### Senior Software Engineer | Bluesight
+    May '22 – Dec '23 | Remote
+
+    WRONG (do NOT output these):
+    ### Bluesight — Senior Software Engineer (May 2022 - Dec 2023) - Remote
+    ### Bluesight | Senior Software Engineer | Remote
+    ### Senior Software Engineer | Bluesight | Remote | May '22 – Dec '23
+
+    The heading line has EXACTLY two pipe-separated fields: Title | Company. Nothing else on that line.
+    The date/location line is a plain paragraph on the NEXT line: Dates | Location. NOT a heading.
+
+  - Optional '## Additional Experience' section (after '## Experience', before '## Education'): same heading format (### Title | Company with date/location on next line), then 1 strong bullet summarizing technical scope or outcome. If space is extremely tight, a compact line: '**Company** (Dates) — industry/tech descriptor'
   - Under '## Skills', use either a comma-separated list or bolded sub-sections (e.g., '**Backend:** Node.js, Go | **Cloud:** AWS, Azure'). Do NOT use nested bullet lists for skills.
-  - If the source resume has a '<!-- tech: … -->' HTML comment for an employer, reproduce it verbatim on its own line immediately after the employer heading
+  - If the source resume has a '<!-- tech: … -->' HTML comment for an employer, reproduce it verbatim on its own line immediately after the date/location line
   - Bullet points as '- bullet text' (standard markdown list items)
   - Do NOT add inline HTML tags, raw '<tag>' markup, arbitrary heading levels, or extra blank sections
 - Return ONLY the tailored resume in markdown. No preamble, no commentary.

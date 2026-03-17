@@ -1664,6 +1664,7 @@
     .job-item__status--pending { color: #d4a843; }
     .job-item__status--tailored { color: #4e9d78; }
     .job-item__status--reviewed { color: #4e9d78; }
+    .job-item__status--error { color: #c0392b; }
 
     /* ── PASTE JD MODAL ─────────────────────────────────── */
 
@@ -2959,6 +2960,7 @@
       pending:  '\u22EF',   // ...
       tailored: '\u25CF',   // bullet
       reviewed: '\u2713',   // check
+      error:    '\u26A0',   // warning
     };
 
     // ═══════════════════════════════════════════════════════
@@ -3120,6 +3122,9 @@
         const isActive = job.id === state.activeJobId;
         const statusClass = 'job-item__status--' + (job.status || 'loaded');
         const statusIcon = STATUS_ICONS[job.status] || STATUS_ICONS.loaded;
+        const statusTitle = job.status === 'error' && job.error
+          ? ` title="${job.error.replace(/"/g, '&quot;')}"`
+          : '';
         const stage = jobGroupLabel(job);
         return `
           <li class="job-item${isActive ? ' selected' : ''}" data-job-id="${escHtml(job.id)}">
@@ -3131,7 +3136,7 @@
                 <span class="job-item__stage">${escHtml(stage)}</span>
               </div>
             </div>
-            <span class="job-item__status ${statusClass}">${statusIcon}</span>
+            <span class="job-item__status ${statusClass}"${statusTitle}>${statusIcon}</span>
           </li>`;
       }).join('');
 
@@ -3418,7 +3423,7 @@
           }
         } catch (e) {
           console.error(`Tailor failed for ${job.company} - ${job.title}:`, e);
-          job.status = 'loaded';
+          job.status = 'error';
           job.error = e.message || String(e);
           setRunFeedback(`Tailoring failed for ${job.company || 'Company'} — ${job.title || 'Role'}: ${job.error}`, 'error');
         }

@@ -1,34 +1,7 @@
 import { Command } from 'commander';
 import { diffMarkdown, formatDiffAnsi } from '../lib/diff.js';
-import { listSavedWorkspaces, loadSavedWorkspace } from '../services/workspace-store.js';
-import { ResultVersion, SavedWorkspace } from '../types/index.js';
-
-function parseVersionIndex(raw: string | undefined, fallback: number): number {
-  const value = raw === undefined ? fallback : Number.parseInt(raw, 10);
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`Invalid version index: ${raw ?? fallback}`);
-  }
-  return value;
-}
-
-function resolveWorkspaceForJob(jobId: string, requestedWorkspaceId?: string): SavedWorkspace {
-  if (requestedWorkspaceId) {
-    const workspace = loadSavedWorkspace(requestedWorkspaceId);
-    if (!workspace.snapshot.jobResults?.[jobId]?.length) {
-      throw new Error(`Workspace "${requestedWorkspaceId}" has no saved versions for job "${jobId}".`);
-    }
-    return workspace;
-  }
-
-  for (const summary of listSavedWorkspaces()) {
-    const workspace = loadSavedWorkspace(summary.id);
-    if (workspace.snapshot.jobResults?.[jobId]?.length) {
-      return workspace;
-    }
-  }
-
-  throw new Error(`No saved workspace versions found for job "${jobId}".`);
-}
+import { parseVersionIndex, resolveWorkspaceForJob } from '../lib/workspace-utils.js';
+import { ResultVersion } from '../types/index.js';
 
 function resolveDocument(version: ResultVersion, kind: 'resume' | 'coverLetter'): string {
   return kind === 'resume' ? version.result.output.resume : version.result.output.coverLetter;

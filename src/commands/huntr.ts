@@ -5,6 +5,7 @@ import { loadConfig, resolveHuntrToken } from '../config.js';
 import { formatGapAnalysisSummary } from './gap.js';
 import { diffMarkdown, formatDiffAnsi } from '../lib/diff.js';
 import { tailorDocuments } from '../lib/tailor.js';
+import { logUsingEntries } from '../lib/logging.js';
 import { describeProvider } from '../lib/ai.js';
 import { withSpinner } from '../lib/spinner.js';
 import { findFile, readFile, JOB_SHIT_DIR } from '../lib/files.js';
@@ -119,17 +120,6 @@ function stripHtml(html: string): string {
     .replace(/[<>]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-}
-
-function logUsingEntries(entries: Array<{ label: string; value?: string }>): void {
-  const filtered = entries.filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
-  if (filtered.length === 0) return;
-
-  const width = Math.max(...filtered.map((entry) => entry.label.length));
-  console.log('');
-  for (const entry of filtered) {
-    console.log(`Using ${entry.label.padEnd(width)} ${entry.value}`);
-  }
 }
 
 function slugify(text: string): string {

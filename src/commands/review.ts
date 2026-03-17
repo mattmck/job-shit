@@ -1,37 +1,11 @@
 import { Command } from 'commander';
 import { diffMarkdown } from '../lib/diff.js';
+import { parseVersionIndex, resolveWorkspaceForJob } from '../lib/workspace-utils.js';
 import { renderResumeHtml } from '../lib/render.js';
 import { analyzeGap } from '../services/gap.js';
-import { listSavedWorkspaces, loadSavedWorkspace, saveWorkspaceSnapshot } from '../services/workspace-store.js';
+import { loadSavedWorkspace, saveWorkspaceSnapshot } from '../services/workspace-store.js';
 import { launchReviewTui } from '../tui/review.js';
 import { ResultVersion, SavedHuntrJob, SavedWorkspace, TailorRunResult } from '../types/index.js';
-
-function parseVersionIndex(raw: string | undefined, fallback: number): number {
-  const value = raw === undefined ? fallback : Number.parseInt(raw, 10);
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`Invalid version index: ${raw ?? fallback}`);
-  }
-  return value;
-}
-
-function resolveWorkspaceForJob(jobId: string, requestedWorkspaceId?: string): SavedWorkspace {
-  if (requestedWorkspaceId) {
-    const workspace = loadSavedWorkspace(requestedWorkspaceId);
-    if (!workspace.snapshot.jobResults?.[jobId]?.length) {
-      throw new Error(`Workspace "${requestedWorkspaceId}" has no saved versions for job "${jobId}".`);
-    }
-    return workspace;
-  }
-
-  for (const summary of listSavedWorkspaces()) {
-    const workspace = loadSavedWorkspace(summary.id);
-    if (workspace.snapshot.jobResults?.[jobId]?.length) {
-      return workspace;
-    }
-  }
-
-  throw new Error(`No saved workspace versions found for job "${jobId}".`);
-}
 
 function versionLabel(nextIndex: number): string {
   return `v${nextIndex} (review)`;
@@ -39,7 +13,7 @@ function versionLabel(nextIndex: number): string {
 
 function findJobContext(workspace: SavedWorkspace, jobId: string): SavedHuntrJob | null {
   const jobs = workspace.snapshot.huntrJobs ?? [];
-  return jobs.find((job) => job.id === jobId) ?? workspace.snapshot.selectedHuntrJob ?? null;
+  return jobs.find((job: SavedHuntrJob) => job.id === jobId) ?? workspace.snapshot.selectedHuntrJob ?? null;
 }
 
 function buildReviewedResult(args: {

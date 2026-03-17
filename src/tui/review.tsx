@@ -81,9 +81,14 @@ function openInEditor(initial: string, setRawMode: (isEnabled: boolean) => void)
   try {
     writeFileSync(path, initial, 'utf8');
     setRawMode(false);
-    const result = spawnSync(editor, [path], { stdio: 'inherit' });
+    // Run editor with shell=true to handle editor strings with flags (e.g., "vim -u ~/.vimrc")
+    const result = spawnSync(editor, [path], { stdio: 'inherit', shell: true });
     if (result.error) {
       throw result.error;
+    }
+    // Check exit status and throw error if editor failed
+    if (result.status !== 0 && result.status !== null) {
+      throw new Error(`Editor exited with status ${result.status}`);
     }
     return readFileSync(path, 'utf8');
   } finally {
@@ -193,8 +198,10 @@ function ReviewApp(props: {
   const [busy, setBusy] = useState(false);
   const [shouldExit, setShouldExit] = useState(false);
 
+  // Compute gap analysis from live sections state, not from props.args.baseResume
+  // This ensures badges reflect live edits and regenerations
   const gapAnalysis = analyzeGap(
-    props.args.baseResume,
+    assembleSections(sections),
     props.args.jobDescription,
     props.args.jobTitle,
   );

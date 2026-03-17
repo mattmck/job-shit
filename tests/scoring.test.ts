@@ -94,7 +94,7 @@ describe('evaluateScorecard', () => {
     expect(scorecard.overall).toBe(84);
     expect(scorecard.documents).toHaveLength(2);
     expect(scorecard.documents[1]?.document).toBe('cover letter');
-    expect(scorecard.notes).toHaveLength(2);
+    expect(scorecard.notes).toHaveLength(4);
   });
 
   it('falls back to a single legacy review document when the evaluator returns an object', async () => {

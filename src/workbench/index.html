@@ -2013,6 +2013,11 @@
 
     const asyncButtons = () => Array.from(document.querySelectorAll('.async-action'));
 
+    // Debounced refresh for result insights (avoid spamming API on keystroke)
+    const debouncedRefreshResultInsights = debounce((result) => {
+      void refreshResultInsights(result);
+    }, 500);
+
     // ═══════════════════════════════════════════
     //  UTILITIES
     // ═══════════════════════════════════════════
@@ -2036,8 +2041,17 @@
 
     function setStatus(el, text) { if (el) el.textContent = text; }
 
+    // Debounce utility: delays function execution until wait time passes without new calls
+    function debounce(fn, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), wait);
+      };
+    }
+
     function slugify(text) {
-      return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+      return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     }
 
     function currentJobId() {
@@ -2049,11 +2063,31 @@
     }
 
     function currentResultVersionIndex() {
-      return currentResultVersions().findIndex(v => v.result === state.lastResult);
+      return currentResultVersions().findIndex(v => {
+        // Try stable ID comparison first
+        if (v.result?.id !== undefined && state.lastResult?.id !== undefined) {
+          return v.result.id === state.lastResult.id;
+        }
+        if (v.result?.uuid !== undefined && state.lastResult?.uuid !== undefined) {
+          return v.result.uuid === state.lastResult.uuid;
+        }
+        // Fall back to deep equality via JSON stringification
+        return JSON.stringify(v.result) === JSON.stringify(state.lastResult);
+      });
     }
 
     function currentResultVersionEntry() {
-      return currentResultVersions().find(v => v.result === state.lastResult) || null;
+      return currentResultVersions().find(v => {
+        // Try stable ID comparison first
+        if (v.result?.id !== undefined && state.lastResult?.id !== undefined) {
+          return v.result.id === state.lastResult.id;
+        }
+        if (v.result?.uuid !== undefined && state.lastResult?.uuid !== undefined) {
+          return v.result.uuid === state.lastResult.uuid;
+        }
+        // Fall back to deep equality via JSON stringification
+        return JSON.stringify(v.result) === JSON.stringify(state.lastResult);
+      }) || null;
     }
 
     function classifySectionTypeClient(heading) {
@@ -4020,7 +4054,9 @@ p.contact a, p.links a, a { color: ${theme.link}; }`;
         if (!isFromResumeEditor) return;
         state.lastResumeEditorSync = msg.markdown;
         if (state.structuredEditorTarget === 'result' && state.lastResult) {
-          updateResultResume(msg.markdown);
+          // Update resume without triggering API call immediately; debounce the refresh
+          updateResultResume(msg.markdown, false);
+          debouncedRefreshResultInsights(state.lastResult);
         } else {
           // Write back to source
           if (els.resume.value !== msg.markdown) els.resume.value = msg.markdown;

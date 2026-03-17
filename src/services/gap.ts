@@ -257,6 +257,8 @@ export function extractPhrases(text: string): string[] {
       if (category !== 'other' || IMPORTANT_OTHER_TERMS.has(term)) return true;
       // Keep multi-word phrases that appear 2+ times (likely real requirements)
       if (term.includes(' ') && count >= 2) return true;
+      // Drop single-word terms that are components of kept phrases
+      if (!term.includes(' ') && wordsInPhrases.has(term)) return false;
       // Drop low-frequency 'other' single words — this is where the 993 noise lived
       return false;
     })

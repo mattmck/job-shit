@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Replace `isTailoring` with queue state
+## Task 1: Replace `isTailoring` with queue state
 
 **Files:**
 - Modify: `src/workbench/index-v2.html:2523` (state init block)
@@ -501,10 +501,10 @@ git commit -m "refactor: replace all updateDocsIndicator() calls with syncTopBar
 
 **Step 1: Run tests**
 ```bash
-cd /Users/matt.mcknight/job-shit-diff-gap-parser-foundation
+cd $(git rev-parse --show-toplevel)
 npm test
 ```
-Expected: all 125 tests pass (no server-side changes, so all existing tests should be green).
+Expected: all tests pass (no server-side changes, so all existing tests should be green).
 
 **Step 2: Check for leftover `isTailoring` references**
 ```bash

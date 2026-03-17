@@ -48,7 +48,8 @@ function looksLikeDate(html: string): boolean {
 function isDateSegment(text: string): boolean {
   const t = text.trim();
   if (/^\d{4}/.test(t)) return true;
-  if (/^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i.test(t)) return true;
+  // Full month names and abbreviations: January|February|...|December|Jan|Feb|...|Dec
+  if (/^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/i.test(t)) return true;
   if (/(?<!\d)[''']?\d{2}(?:\d{2})?\s*[-–—]\s*(?:[''']?\d{2}(?:\d{2})?|present|current)(?!\d)/i.test(t)) return true;
   return false;
 }
@@ -181,7 +182,12 @@ function parseJobHeading(text: string): JobHeading {
     return { title: pipeParts[0], company: pipeParts[1], location: tail.join(' | '), dates: '' };
   }
   if (pipeParts.length >= 2) {
-    return { title: pipeParts[0], company: pipeParts[1], location: pipeParts[2] ?? '', dates: '' };
+    const thirdPart = pipeParts[2] ?? '';
+    // Check if third part looks like a date (e.g., "Sep 2024", "2020 - 2023", "2020–Present")
+    if (thirdPart && isDateSegment(thirdPart)) {
+      return { title: pipeParts[0], company: pipeParts[1], location: pipeParts[3] ?? '', dates: thirdPart };
+    }
+    return { title: pipeParts[0], company: pipeParts[1], location: thirdPart, dates: '' };
   }
 
   // Fallback: "Company — Title (dates) - Location" or similar dash formats

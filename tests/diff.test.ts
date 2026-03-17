@@ -74,6 +74,19 @@ describe('diffLines', () => {
   });
 });
 
+describe('diffMarkdown', () => {
+  it('captures a single line change with surrounding context', () => {
+    const diff = diffMarkdown('alpha\nbeta\ngamma', 'alpha\nbeta updated\ngamma');
+
+    expect(diff.hunks).toEqual([
+      { type: 'unchanged', lines: ['alpha'] },
+      { type: 'removed', lines: ['beta'] },
+      { type: 'added', lines: ['beta updated'] },
+      { type: 'unchanged', lines: ['gamma'] },
+    ]);
+  });
+});
+
 describe('formatDiffAnsi', () => {
   it('includes the expected color codes and prefixes', () => {
     const diff = diffLines('alpha\nbeta', 'alpha\ngamma');
@@ -119,7 +132,9 @@ describe('formatDiffAnsi', () => {
     expect(output).not.toContain('\x1b[90m line 1\x1b[0m');
     expect(output).not.toContain('\x1b[90m line 20\x1b[0m');
   });
+});
 
+describe('formatDiffHtml', () => {
   it('renders HTML with escaped line content', () => {
     const html = formatDiffHtml(diffLines('alpha', '<script>alert(1)</script>'));
 

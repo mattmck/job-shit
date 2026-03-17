@@ -72,7 +72,7 @@ interface HuntrRunBody {
 }
 
 interface ExportPdfBody {
-  kind: 'resume' | 'coverLetter' | 'cover-letter';
+  kind: 'resume' | 'coverLetter';
   title?: string;
   markdown?: string;
   html?: string;
@@ -143,8 +143,23 @@ function sendHtml(res: ServerResponse, html: string): void {
 
 function sanitizeFilename(raw: string): string {
   // Strip path separators, CR/LF, quotes; fallback to safe default
-  const safe = raw.replace(/[\r\n"\/\\]/g, '').trim();
+  const safe = raw.replace(/[\r\n"/\\]/g, '').trim();
   return safe || 'download.pdf';
+}
+
+/**
+ * Normalize kind variants at entry point.
+ * Accepts both 'cover-letter' and 'coverLetter', normalizes to 'coverLetter' internally.
+ * This ensures all downstream code only uses the canonical 'coverLetter' variant.
+ */
+function normalizeExportKind(kind: unknown): 'resume' | 'coverLetter' {
+  if (kind === 'cover-letter') {
+    return 'coverLetter';
+  }
+  if (kind !== 'resume' && kind !== 'coverLetter') {
+    throw new Error(`Unknown export kind: ${kind}`);
+  }
+  return kind;
 }
 
 function sendPdf(res: ServerResponse, filename: string, pdf: Buffer): void {
@@ -171,6 +186,12 @@ async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
 }
 
 async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; pdf: Buffer }> {
+  // Validate kind before using it in filesystem paths (Issue #2: Path Traversal)
+  const allowedKinds = ['resume', 'coverLetter', 'cover-letter'];
+  if (!allowedKinds.includes(body.kind)) {
+    throw new Error(`Unknown export kind: ${body.kind}`);
+  }
+
   const dir = mkdtempSync(join(tmpdir(), 'job-shit-export-'));
   try {
     const htmlPath = join(dir, `${body.kind}.html`);
@@ -193,8 +214,8 @@ async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; 
       };
     }
 
-    // Accept both 'coverLetter' and 'cover-letter'
-    if (body.kind === 'coverLetter' || body.kind === 'cover-letter') {
+    // Only 'coverLetter' variant (normalized at entry point)
+    if (body.kind === 'coverLetter') {
       if (!body.markdown && !body.html) {
         throw new Error('Cover letter PDF export requires markdown or HTML.');
       }
@@ -207,6 +228,7 @@ async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; 
       };
     }
 
+    // This should never happen since normalization validates the kind early
     throw new Error(`Unknown export kind: ${body.kind}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -632,7 +654,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
 
   if (method === 'POST' && url.pathname === '/api/regenerate-section') {
     const body = await readJsonBody<RegenerateSectionBody>(req);
-    if (!body.sectionId || body.sectionId.trim() === '') {
+    if (typeof body.sectionId !== 'string' || body.sectionId.trim() === '') {
       sendJson(res, 400, { error: 'sectionId is required' });
       return;
     }
@@ -651,16 +673,22 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
   }
 
   if (method === 'POST' && url.pathname === '/api/render') {
-    const body = await readJsonBody<{ markdown: string; kind: 'resume' | 'coverLetter' | 'cover-letter'; title?: string; theme?: ResumeTheme }>(req);
-    const html = body.kind === 'resume'
-      ? renderResumeHtml(body.markdown, body.title || 'Resume', false, body.theme)
-      : renderCoverLetterHtml(body.markdown, body.title || 'Cover Letter', body.theme);
+    const rawBody = await readJsonBody<{ markdown: string; kind: unknown; title?: string; theme?: ResumeTheme }>(req);
+    const kind = normalizeExportKind(rawBody.kind);
+    const html = kind === 'resume'
+      ? renderResumeHtml(rawBody.markdown, rawBody.title || 'Resume', false, rawBody.theme)
+      : renderCoverLetterHtml(rawBody.markdown, rawBody.title || 'Cover Letter', rawBody.theme);
     sendJson(res, 200, { html });
     return;
   }
 
   if (method === 'POST' && url.pathname === '/api/export/pdf') {
-    const body = await readJsonBody<ExportPdfBody>(req);
+    const rawBody = await readJsonBody<{ kind: unknown; title?: string; markdown?: string; html?: string; theme?: Partial<ResumeTheme> }>(req);
+    const kind = normalizeExportKind(rawBody.kind);
+    const body: ExportPdfBody = {
+      ...rawBody,
+      kind,
+    };
     const result = await buildPdfBuffer(body);
     sendPdf(res, result.filename, result.pdf);
     return;

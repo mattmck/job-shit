@@ -25,14 +25,14 @@ Remove `isTailoring` entirely. "Is tailoring active?" = `tailorRunning !== null`
 
 ### Queue loop
 
-`ensureTailorLoop()` — called after any enqueue. Starts `tailorLoop()` only if `tailorRunning === null`. The loop:
+`ensureTailorLoop()` — called after any enqueue. Starts `tailorLoop()` only if `tailorRunning === null`. The loop uses an iterative `while (state.tailorQueue.length > 0)` pattern to avoid recursion stack growth:
 
 1. Shifts next ID from `tailorQueue`, sets `tailorRunning`
 2. Fetches `/api/runs/manual` for that job
 3. On success: sets `job.status = 'tailored'`, `job.result`, clears `job.error`
 4. On error: sets `job.status = 'error'`, `job.error = message`
 5. Sets `tailorRunning = null`, calls `syncTopBarStatus()` + `renderJobList()`
-6. Recurses (picks up next queued job) until queue is empty
+6. Loop continues to next queued job until queue is empty
 7. On empty: calls `onQueueDrained(completedCount, failedJobs[])`
 
 ### Enqueueing
@@ -44,7 +44,7 @@ Remove `isTailoring` entirely. "Is tailoring active?" = `tailorRunning !== null`
 
 ### Huntr reload merge
 
-`loadHuntrJobs()` merges incoming jobs by Huntr job ID:
+`loadHuntrJobs()` merges incoming jobs by comparing the job ID field (`j.id`) against existing jobs using `state.huntrJobs.find(j => j.id === id)`:
 
 - **Existing job found:** update only `title`, `company`, `stage`, `jd` metadata. Preserve `status`, `result`, `error`, `_editorData`, `checked`.
 - **New job:** append to list with `status: 'loaded'`.
@@ -93,4 +93,4 @@ Unchanged — continues to show result detail / re-grade status for the **active
 
 - Parallel tailoring (still sequential, one at a time)
 - Cancelling in-flight jobs
-- Queue persistence across page reload
+- Queue persistence across page reload (Note: The active tailoring queue state — `tailorQueue` and `tailorRunning` — is transient runtime state not preserved across page reloads. However, workspace persistence of tailored job results is in scope and is preserved; only the active queue itself is non-persistent.)

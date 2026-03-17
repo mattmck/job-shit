@@ -252,6 +252,18 @@ function parseEvaluatorScorecard(raw: string): EvaluatorScorecard {
   }
 
   const primary = primaryDocumentSummary(documents);
+
+  // Merge notes and blockingIssues from all documents
+  const allNotes: string[] = [];
+  const allBlockingIssues: string[] = [];
+  for (const doc of documents) {
+    if (doc.notes) allNotes.push(...doc.notes);
+    if (doc.blockingIssues) allBlockingIssues.push(...doc.blockingIssues);
+  }
+  // Deduplicate by converting to Set and back
+  const uniqueNotes = Array.from(new Set(allNotes));
+  const uniqueBlockingIssues = Array.from(new Set(allBlockingIssues));
+
   return {
     overall: primary?.overall,
     atsCompatibility: primary?.atsCompatibility,
@@ -266,8 +278,8 @@ function parseEvaluatorScorecard(raw: string): EvaluatorScorecard {
     factualRisk: primary?.factualRisk,
     confidence: primary?.confidence,
     verdict: primary?.verdict,
-    blockingIssues: primary?.blockingIssues ?? [],
-    notes: primary?.notes ?? [],
+    blockingIssues: uniqueBlockingIssues,
+    notes: uniqueNotes,
     documents,
     raw,
   };

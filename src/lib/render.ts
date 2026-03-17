@@ -428,6 +428,34 @@ export async function renderResumePdfFit(
   return getPdfPageCount(pdfPath) <= 1;
 }
 
+/**
+ * Ensure every entry in "## Additional Experience" sections is a bullet list item.
+ * The AI sometimes outputs entries as bare lines (`**Role, Company** (dates) — desc`)
+ * without the `- ` prefix, causing Markdown to collapse them into a single paragraph.
+ * This function adds `- ` to any such line that starts with `**` inside these sections.
+ */
+function normalizeAdditionalExperience(md: string): string {
+  const lines = md.split('\n');
+  let inAddlExp = false;
+  const out: string[] = [];
+  for (const line of lines) {
+    // Detect section boundaries
+    if (/^## /i.test(line)) {
+      inAddlExp = /additional\s+experience/i.test(line);
+      out.push(line);
+      continue;
+    }
+    // Inside Additional Experience: if a line starts with ** (bold entry) but is NOT already
+    // a list item (- or * followed by space), add a bullet prefix.
+    if (inAddlExp && /^\*\*/.test(line.trim()) && !/^[-*]\s/.test(line.trim())) {
+      out.push('- ' + line.trim());
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
 export function renderResumeHtml(
   markdown: string,
   pageTitle?: string,
@@ -439,7 +467,9 @@ export function renderResumeHtml(
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/^• /gm, '- ')
     .trim();
-  const normalized = normalizeContactLinks(cleaned);
+  // Normalize Additional Experience section: ensure each **Role/Company** entry is a bullet.
+  // The AI sometimes omits the '- ' prefix, causing all entries to collapse into one paragraph.
+  const normalized = normalizeContactLinks(normalizeAdditionalExperience(cleaned));
 
   const { renderer, closeJobSection } = makeRenderer();
   const m = new Marked({ renderer: renderer as any });

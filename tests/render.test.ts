@@ -239,6 +239,36 @@ describe('normalizeContactLinks / isUrlLike', () => {
     expect(html).toContain('<span class="job-location">Laurel, MD</span>');
   });
 
+  it('normalizes Additional Experience bare bold entries into bullet list items', () => {
+    const md = [
+      '# Dev',
+      '## Engineer',
+      '',
+      'dev@example.com | linkedin.com/in/dev',
+      '',
+      '## Experience',
+      '',
+      '### Senior Engineer | Acme',
+      '2022 – 2024',
+      '',
+      '- Built things.',
+      '',
+      '## Additional Experience',
+      '',
+      '**Software Engineer, Fearless** (2018) — Orchestrated AWS environments with Terraform.',
+      '**Senior Engineer, Philips Healthcare** (2017 – 2018) — Built real-time ICU monitoring.',
+      '',
+      '## Education',
+      '',
+      'MIT — B.S., Computer Science',
+    ].join('\n');
+    const html = renderResumeHtml(md);
+    // Both entries must appear as <li> items, not collapsed into one paragraph
+    expect(html).toContain('<li>');
+    const liCount = (html.match(/<li>/g) || []).length;
+    expect(liCount).toBeGreaterThanOrEqual(3); // 1 from Experience + 2 from Additional
+  });
+
   it('does NOT count ### headings toward the h2 stop-linkify threshold', () => {
     // If ### incorrectly incremented h2Count, linkification would stop
     // too early and the contact link below would not be wrapped in <a>.

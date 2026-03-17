@@ -152,7 +152,7 @@ function sanitizeFilename(raw: string): string {
  * Accepts both 'cover-letter' and 'coverLetter', normalizes to 'coverLetter' internally.
  * This ensures all downstream code only uses the canonical 'coverLetter' variant.
  */
-function normalizeExportKind(kind: unknown): 'resume' | 'coverLetter' {
+export function normalizeExportKind(kind: unknown): 'resume' | 'coverLetter' {
   if (kind === 'cover-letter') {
     return 'coverLetter';
   }
@@ -186,9 +186,9 @@ async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
 }
 
 async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; pdf: Buffer }> {
-  // Validate kind before using it in filesystem paths (Issue #2: Path Traversal)
-  const allowedKinds = ['resume', 'coverLetter', 'cover-letter'];
-  if (!allowedKinds.includes(body.kind)) {
+  // Validate kind before using it in filesystem paths. Should only be 'resume' or 'coverLetter'
+  // after normalization at entry points (lines 677, 687). This is a defensive check.
+  if (!['resume', 'coverLetter'].includes(body.kind)) {
     throw new Error(`Unknown export kind: ${body.kind}`);
   }
 

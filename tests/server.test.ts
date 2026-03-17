@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { normalizeExportKind } from '../src/server.js';
 
 describe('ExportPdfBody type', () => {
   it('accepts kind=resume variant', () => {
@@ -193,41 +194,37 @@ describe('Issue 2: Path Traversal Vulnerability in buildPdfBuffer', () => {
   });
 });
 
-describe('Issue 3: Maintainability - Dual kind variants normalization', () => {
-  // Helper function to normalize kind at entry point
-  function normalizeKind(kind: unknown): 'resume' | 'coverLetter' {
-    if (kind === 'cover-letter') {
-      return 'coverLetter';
-    }
-    // Validation will happen after normalization
-    if (kind !== 'resume' && kind !== 'coverLetter') {
-      throw new Error(`Unknown export kind: ${kind}`);
-    }
-    return kind;
-  }
+describe('Issue 3: normalizeExportKind - exported function tests', () => {
+  // Tests using the actual normalizeExportKind function from src/server.ts
 
   it('should normalize cover-letter to coverLetter', () => {
-    const result = normalizeKind('cover-letter');
+    const result = normalizeExportKind('cover-letter');
     expect(result).toBe('coverLetter');
   });
 
   it('should preserve resume variant', () => {
-    const result = normalizeKind('resume');
+    const result = normalizeExportKind('resume');
     expect(result).toBe('resume');
   });
 
   it('should preserve coverLetter variant', () => {
-    const result = normalizeKind('coverLetter');
+    const result = normalizeExportKind('coverLetter');
     expect(result).toBe('coverLetter');
   });
 
-  it('should reject unknown kinds after normalization', () => {
-    expect(() => normalizeKind('unknown')).toThrow('Unknown export kind');
+  it('should reject unknown kinds', () => {
+    expect(() => normalizeExportKind('unknown')).toThrow('Unknown export kind');
+  });
+
+  it('should reject non-string kinds', () => {
+    expect(() => normalizeExportKind(42)).toThrow('Unknown export kind');
+    expect(() => normalizeExportKind(null)).toThrow('Unknown export kind');
+    expect(() => normalizeExportKind(undefined)).toThrow('Unknown export kind');
   });
 
   it('should simplify type checks after normalization', () => {
-    // After normalization, we only need to check 'resume' or 'coverLetter'
-    const body = { kind: normalizeKind('cover-letter') as 'resume' | 'coverLetter' };
+    // After normalization via the actual exported function, only 'resume' or 'coverLetter' are possible
+    const body = { kind: normalizeExportKind('cover-letter') as 'resume' | 'coverLetter' };
     // Simple check without dual variants
     const isResume = body.kind === 'resume';
     const isCoverLetter = body.kind === 'coverLetter';

@@ -27,12 +27,12 @@ VOICE
 LENGTH — must fit on one page when rendered as a PDF. Be ruthless:
   * Summary: 2 sentences max
   * Selected Impact: 2-3 bullets max, tightest possible phrasing
-  * Include EVERY employer from the source resume — do not drop any. Place the most relevant employers in ## Experience (1-3 bullets each). Move remaining employers into ## Additional Experience (placed after ## Experience, before ## Education) as a bullet list. Each bullet is ONE line in this exact format:
-    - **Role, Company** (Dates) — one-sentence scope/outcome
-    Example:
-    - **Senior Software Engineer, Philips Healthcare** (2017 – 2018) — Built real-time ICU monitoring features in ASP.NET MVC/WPF serving tens of thousands of beds.
-    - **Software Engineer, Fearless** (2018) — Orchestrated multi-region AWS environments with Terraform and CI/CD automation.
-    Do NOT use ### headings, separate date lines, or multi-bullet entries for Additional Experience jobs.
+  * Include EVERY employer from the source resume — do not drop any. Place the most relevant employers in ## Experience (1-3 bullets each). Move remaining employers into ## Additional Experience (placed after ## Experience, before ## Education). Each entry is ONE line in this exact format:
+    **Role, Company** (Dates) — one-sentence scope/outcome
+    Put each entry on its own line. Example:
+    **Senior Software Engineer, Philips Healthcare** (2017 – 2018) — Delivered real-time ICU monitoring features in ASP.NET MVC/WPF across tens of thousands of beds.
+    **Software Engineer, Fearless** (2018) — Orchestrated multi-region AWS environments with Terraform and CI/CD automation.
+    Do NOT use ### headings, separate date lines, bullet prefixes (- ), or multi-line entries for Additional Experience jobs.
   * Skills: a single comma-separated list of the most relevant technologies. If space allows (e.g. fewer than 6 total employers or short summary), you MAY use 2-3 tight sub-sections (e.g. **Backend:** Java, Spring Boot, etc.) instead.
   * Cut anything that doesn't directly serve this application
 
@@ -59,9 +59,9 @@ LENGTH — must fit on one page when rendered as a PDF. Be ruthless:
     The heading line has EXACTLY two pipe-separated fields: Title | Company. Nothing else on that line.
     The date/location line is a plain paragraph on the NEXT line: Dates | Location. NOT a heading.
 
-  - CRITICAL — '## Additional Experience' section (after '## Experience', before '## Education') must be a BULLET LIST. Each entry is a single bullet line:
-    - **Role, Company** (Dates) — one-sentence description
-    Do NOT use ### headings or date/location lines for Additional Experience. Do NOT smash multiple entries onto one line. Each entry gets its own bullet starting with '- '.
+  - CRITICAL — '## Additional Experience' section (after '## Experience', before '## Education'): output each entry on its own line with NO bullet prefix:
+    **Role, Company** (Dates) — one-sentence description
+    The renderer will join them with ' | ' automatically. Do NOT use ### headings, bullet prefixes (- ), or date/location lines for Additional Experience entries.
   - Under '## Skills', use either a comma-separated list or bolded sub-sections (e.g., '**Backend:** Node.js, Go | **Cloud:** AWS, Azure'). Do NOT use nested bullet lists for skills.
   - If the source resume has a '<!-- tech: … -->' HTML comment for an employer, reproduce it verbatim on its own line immediately after the date/location line
   - Bullet points as '- bullet text' (standard markdown list items)

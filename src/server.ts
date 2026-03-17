@@ -193,16 +193,21 @@ async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; 
       };
     }
 
-    if (!body.html) {
-      throw new Error('Cover letter PDF export requires HTML.');
+    // Accept both 'coverLetter' and 'cover-letter'
+    if (body.kind === 'coverLetter' || body.kind === 'cover-letter') {
+      if (!body.markdown && !body.html) {
+        throw new Error('Cover letter PDF export requires markdown or HTML.');
+      }
+      const html = body.html ?? renderCoverLetterHtml(body.markdown!, body.title ?? 'Cover Letter', body.theme);
+      writeFileSync(htmlPath, html, 'utf8');
+      await renderPdf(htmlPath, pdfPath);
+      return {
+        filename: 'cover-letter.pdf',
+        pdf: readFileSync(pdfPath),
+      };
     }
 
-    writeFileSync(htmlPath, body.html, 'utf8');
-    await renderPdf(htmlPath, pdfPath);
-    return {
-      filename: 'cover-letter.pdf',
-      pdf: readFileSync(pdfPath),
-    };
+    throw new Error(`Unknown export kind: ${body.kind}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

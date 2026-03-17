@@ -239,7 +239,7 @@ describe('normalizeContactLinks / isUrlLike', () => {
     expect(html).toContain('<span class="job-location">Laurel, MD</span>');
   });
 
-  it('normalizes Additional Experience bare bold entries into bullet list items', () => {
+  it('normalizes Additional Experience entries into a single pipe-separated paragraph', () => {
     const md = [
       '# Dev',
       '## Engineer',
@@ -263,10 +263,13 @@ describe('normalizeContactLinks / isUrlLike', () => {
       'MIT — B.S., Computer Science',
     ].join('\n');
     const html = renderResumeHtml(md);
-    // Both entries must appear as <li> items, not collapsed into one paragraph
-    expect(html).toContain('<li>');
+    // Entries should be joined with pipe and rendered in a single paragraph
+    expect(html).toContain('Fearless');
+    expect(html).toContain('Philips Healthcare');
+    expect(html).toContain(' | ');
+    // Should NOT be separate list items
     const liCount = (html.match(/<li>/g) || []).length;
-    expect(liCount).toBeGreaterThanOrEqual(3); // 1 from Experience + 2 from Additional
+    expect(liCount).toBe(1); // only the Experience bullet
   });
 
   it('does NOT count ### headings toward the h2 stop-linkify threshold', () => {

@@ -429,30 +429,56 @@ export async function renderResumePdfFit(
 }
 
 /**
- * Ensure every entry in "## Additional Experience" sections is a bullet list item.
- * The AI sometimes outputs entries as bare lines (`**Role, Company** (dates) — desc`)
- * without the `- ` prefix, causing Markdown to collapse them into a single paragraph.
- * This function adds `- ` to any such line that starts with `**` inside these sections.
+ * Normalize "## Additional Experience" entries into a single pipe-separated paragraph.
+ * The AI outputs each entry on its own line as `**Role, Company** (dates) — desc`.
+ * This function collects all such lines (with or without leading `- `) and joins
+ * them with ` | ` so they render as one compact paragraph consistent with the
+ * pipe style used elsewhere in the resume.
  */
 function normalizeAdditionalExperience(md: string): string {
   const lines = md.split('\n');
   let inAddlExp = false;
+  const entries: string[] = [];
   const out: string[] = [];
+
+  const flush = () => {
+    if (entries.length > 0) {
+      out.push(entries.join(' | '));
+      entries.length = 0;
+    }
+  };
+
   for (const line of lines) {
     // Detect section boundaries
     if (/^## /i.test(line)) {
+      if (inAddlExp) flush();
       inAddlExp = /additional\s+experience/i.test(line);
       out.push(line);
       continue;
     }
-    // Inside Additional Experience: if a line starts with ** (bold entry) but is NOT already
-    // a list item (- or * followed by space), add a bullet prefix.
-    if (inAddlExp && /^\*\*/.test(line.trim()) && !/^[-*]\s/.test(line.trim())) {
-      out.push('- ' + line.trim());
-      continue;
+
+    if (inAddlExp) {
+      const trimmed = line.trim();
+      // Strip leading list marker if present, then check for a **bold** entry
+      const stripped = trimmed.replace(/^[-*]\s+/, '');
+      if (/^\*\*/.test(stripped)) {
+        entries.push(stripped);
+        continue;
+      }
+      // Blank line or non-entry line: flush collected entries first
+      if (trimmed === '') {
+        flush();
+        // Don't emit blank lines inside the section (they'd break the paragraph)
+        continue;
+      }
+      // A full pipe-separated paragraph already on one line — keep as-is
+      flush();
     }
+
     out.push(line);
   }
+
+  flush();
   return out.join('\n');
 }
 

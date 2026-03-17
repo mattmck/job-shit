@@ -3178,10 +3178,8 @@
       renderJobsMeta(jobs.length, state.jobs.length);
 
       const checkedCount = state.jobs.filter(j => j.checked).length;
-      tailorBtn.disabled = checkedCount === 0 || state.isTailoring;
-      tailorBtn.textContent = state.isTailoring
-        ? 'Tailoring...'
-        : checkedCount > 0
+      tailorBtn.disabled = checkedCount === 0;
+      tailorBtn.textContent = checkedCount > 0
         ? `Tailor Selected (${checkedCount})`
         : 'Tailor Selected';
 
@@ -3342,6 +3340,94 @@
     }
 
     // ═══════════════════════════════════════════════════════
+    //  TAILOR QUEUE (Agent B)
+    // ═══════════════════════════════════════════════════════
+
+    function ensureTailorLoop() {
+      if (state.tailorRunning !== null) return; // already running
+      if (state.tailorQueue.length === 0) return; // nothing to do
+      tailorLoop();
+    }
+
+    async function tailorLoop() {
+      let tailoredCount = 0;
+      const failedJobs = [];
+
+      while (state.tailorQueue.length > 0) {
+        const jobId = state.tailorQueue.shift();
+        const job = state.jobs.find(j => j.id === jobId);
+        if (!job) continue; // job was removed
+
+        state.tailorRunning = jobId;
+        state.tailorRunningStartedAt = Date.now();
+        job.status = 'pending';
+        job.error = null;
+        syncTopBarStatus();
+        renderJobList();
+
+        try {
+          const res = await fetch('/api/runs/manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agents: currentAgents(),
+              promptOverrides: currentPromptOverrides(),
+              input: {
+                resume: state.sourceResume,
+                bio: state.sourceBio,
+                baseCoverLetter: state.sourceCoverLetter,
+                resumeSupplemental: state.sourceSupplemental,
+                jobDescription: job.jd,
+                company: job.company,
+                jobTitle: job.title,
+              },
+              includeScoring: true,
+            }),
+          });
+
+          if (!res.ok) throw new Error(await res.text() || res.statusText);
+
+          const result = await res.json();
+          job.status = 'tailored';
+          job.result = result;
+          job.error = null;
+          job._editorData = null;
+          tailoredCount++;
+
+          // Auto-select first completed job
+          if (tailoredCount === 1) {
+            state.activeJobId = job.id;
+            renderJobDetail();
+            renderScoreCards();
+            renderEditor();
+            renderPreviewPanel();
+            renderMissingKeywords();
+          }
+        } catch (e) {
+          job.status = 'error';
+          job.error = e.message || String(e);
+          failedJobs.push(job);
+          console.error(`Tailor failed for ${job.company} \u2014 ${job.title}:`, e);
+        }
+
+        state.tailorRunning = null;
+        state.tailorRunningStartedAt = 0;
+        renderJobList();
+        syncTopBarStatus();
+      }
+
+      // Queue drained
+      onQueueDrained(tailoredCount, failedJobs);
+    }
+
+    function onQueueDrained(tailoredCount, failedJobs) {
+      state.tailorRunning = null;
+      state.tailorLastSummary = { tailored: tailoredCount, failed: failedJobs.length };
+      renderJobList();
+      syncTopBarStatus();
+    }
+
+    // ═══════════════════════════════════════════════════════
     //  ADD MANUAL JOB (Agent B)
     // ═══════════════════════════════════════════════════════
 
@@ -3441,99 +3527,21 @@
         }
       });
 
-      // Set checked jobs to pending
-      const toTailor = state.jobs.filter(j => j.checked);
-      toTailor.forEach(j => { j.status = 'pending'; j.error = null; });
-      state.isTailoring = true;
+      // Enqueue checked jobs (deduplicate against queue + running)
+      const alreadyQueued = new Set([
+        ...state.tailorQueue,
+        ...(state.tailorRunning ? [state.tailorRunning] : []),
+      ]);
+      const toEnqueue = state.jobs.filter(j => j.checked && !alreadyQueued.has(j.id));
+      toEnqueue.forEach(j => { j.status = 'pending'; j.error = null; });
+      state.tailorQueue.push(...toEnqueue.map(j => j.id));
+      state.tailorLastSummary = null;
 
       // Close modal, re-render
       modal.hidden = true;
-      console.info(`Starting tailoring for ${toTailor.length} job(s).`);
-      setRunFeedback(
-        toTailor.length === 1
-          ? `Starting tailoring for ${toTailor[0].company || 'selected job'}...`
-          : `Starting tailoring for ${toTailor.length} selected jobs...`,
-        'working',
-      );
       renderJobList();
-
-      let firstCompletedId = null;
-      let completedCount = 0;
-
-      // Process each job
-      for (const job of toTailor) {
-        try {
-          console.info(`Tailoring started: ${job.company} — ${job.title}`);
-          setRunFeedback(`Tailoring ${job.company || 'Company'} — ${job.title || 'Role'}...`, 'working');
-          const res = await fetch('/api/runs/manual', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              agents: currentAgents(),
-              promptOverrides: currentPromptOverrides(),
-              input: {
-                resume: state.sourceResume,
-                bio: state.sourceBio,
-                baseCoverLetter: state.sourceCoverLetter,
-                resumeSupplemental: state.sourceSupplemental,
-                jobDescription: job.jd,
-                company: job.company,
-                jobTitle: job.title,
-              },
-              includeScoring: true,
-            }),
-          });
-
-          if (!res.ok) {
-            throw new Error(await res.text() || res.statusText);
-          }
-
-          const result = await res.json();
-          job.status = 'tailored';
-          job.result = result;
-          job.error = null;
-          job._editorData = null;
-          completedCount++;
-          console.info(`Tailoring complete: ${job.company} — ${job.title}`);
-          setRunFeedback(
-            toTailor.length === 1
-              ? `Tailoring complete for ${job.company || 'selected job'}.`
-              : `Completed ${completedCount}/${toTailor.length}: ${job.company || 'Company'} — ${job.title || 'Role'}.`,
-          );
-
-          if (!firstCompletedId) {
-            firstCompletedId = job.id;
-          }
-        } catch (e) {
-          console.error(`Tailor failed for ${job.company} - ${job.title}:`, e);
-          job.status = 'error';
-          job.error = e.message || String(e);
-          setRunFeedback(`Tailoring failed for ${job.company || 'Company'} — ${job.title || 'Role'}: ${job.error}`, 'error');
-        }
-
-        renderJobList();
-      }
-
-      state.isTailoring = false;
-      renderJobList();
-
-      // Auto-select first completed job and render all panels
-      if (firstCompletedId) {
-        state.activeJobId = firstCompletedId;
-        renderJobList();
-        renderJobDetail();
-        renderScoreCards();
-        renderEditor();
-        renderPreviewPanel();
-        renderMissingKeywords();
-        setRunFeedback(
-          completedCount === toTailor.length
-            ? `Finished tailoring ${completedCount} job${completedCount === 1 ? '' : 's'}.`
-            : `Finished tailoring ${completedCount}/${toTailor.length} job${toTailor.length === 1 ? '' : 's'}.`,
-        );
-      } else {
-        setRunFeedback('Tailoring did not produce a result.', 'error');
-      }
+      syncTopBarStatus();
+      ensureTailorLoop();
     }
 
     // ═══════════════════════════════════════════════════════

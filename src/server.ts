@@ -72,7 +72,7 @@ interface HuntrRunBody {
 }
 
 interface ExportPdfBody {
-  kind: 'resume' | 'coverLetter';
+  kind: 'resume' | 'coverLetter' | 'cover-letter';
   title?: string;
   markdown?: string;
   html?: string;
@@ -632,6 +632,10 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
 
   if (method === 'POST' && url.pathname === '/api/regenerate-section') {
     const body = await readJsonBody<RegenerateSectionBody>(req);
+    if (!body.sectionId || body.sectionId.trim() === '') {
+      sendJson(res, 400, { error: 'sectionId is required' });
+      return;
+    }
     const config = loadConfig();
     const result = await regenerateResumeSection({
       resume: body.resume ?? '',
@@ -647,7 +651,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
   }
 
   if (method === 'POST' && url.pathname === '/api/render') {
-    const body = await readJsonBody<{ markdown: string; kind: 'resume' | 'coverLetter'; title?: string; theme?: ResumeTheme }>(req);
+    const body = await readJsonBody<{ markdown: string; kind: 'resume' | 'coverLetter' | 'cover-letter'; title?: string; theme?: ResumeTheme }>(req);
     const html = body.kind === 'resume'
       ? renderResumeHtml(body.markdown, body.title || 'Resume', false, body.theme)
       : renderCoverLetterHtml(body.markdown, body.title || 'Cover Letter', body.theme);

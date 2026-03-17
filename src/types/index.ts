@@ -226,6 +226,18 @@ export interface WorkspaceSnapshot {
     openPanels: string[];
     jobListFilter?: string;
   };
+  /** Full saved job list (all jobs with their results/status). */
+  savedJobs?: Array<{
+    id: string;
+    company: string;
+    title: string;
+    jd: string;
+    source: 'huntr' | 'manual';
+    status: string;
+    result?: TailorRunResult | null;
+  }>;
+  /** Which job was active at save time. */
+  activeJobId?: string;
 }
 
 export interface SavedWorkspace {

@@ -5222,6 +5222,16 @@
 
     function buildWorkspaceSnapshot() {
       const job = state.jobs.find(j => j.id === state.activeJobId);
+      // Save all jobs that have been tailored OR are the active job
+      const savedJobs = state.jobs.map(j => ({
+        id: j.id,
+        company: j.company || '',
+        title: j.title || '',
+        jd: j.jd || '',
+        source: j.source || 'manual',
+        status: j.status || 'loaded',
+        result: j.result || null,
+      }));
       return {
         company: job?.company || '',
         jobTitle: job?.title || '',
@@ -5239,6 +5249,8 @@
         agents: currentAgents(),
         uiState: { openPanels: [], jobListFilter: state.jobListFilter },
         result: job?.result || null,
+        savedJobs,
+        activeJobId: state.activeJobId || null,
       };
     }
 
@@ -5340,7 +5352,28 @@
             modelSelect.value = state.scoreModel;
           }
         }
-        if (snap.company || snap.jobTitle) {
+        // Restore jobs — prefer full savedJobs array, fall back to legacy single-job
+        if (snap.savedJobs && snap.savedJobs.length > 0) {
+          state.jobs = snap.savedJobs.map(sj => ({
+            id: sj.id || sid(),
+            company: sj.company || '',
+            title: sj.title || '',
+            jd: sj.jd || '',
+            source: sj.source || 'manual',
+            status: sj.status || (sj.result ? 'tailored' : 'loaded'),
+            checked: false,
+            result: sj.result || null,
+            error: null,
+            _editorData: null,
+          }));
+          // Restore active job — match by saved ID or fall back to first
+          const restoredActive = snap.activeJobId
+            ? state.jobs.find(j => j.id === snap.activeJobId)
+            : null;
+          state.activeJobId = restoredActive ? restoredActive.id : state.jobs[0].id;
+          state.jobListFilter = snap.uiState?.jobListFilter || 'all';
+        } else if (snap.company || snap.jobTitle) {
+          // Legacy: single-job workspace
           const job = {
             id: sid(),
             company: snap.company || '',
@@ -5355,7 +5388,6 @@
           };
           state.jobs = [job];
           state.activeJobId = job.id;
-          // Reset filter so the restored job is visible
           state.jobListFilter = 'all';
         }
         state.activeWorkspaceId = id;

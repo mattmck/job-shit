@@ -14,3 +14,4 @@ resume-supplemental.md
 prompts/
 .DS_Store
 .playwright-cli
+.worktrees/

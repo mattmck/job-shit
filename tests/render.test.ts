@@ -122,6 +122,18 @@ jane@example.com | mattmcknight.com
     const html = renderResumeHtml('## Summary\n\nNo name here.');
     expect(html).toContain('<title>Resume</title>');
   });
+
+  it('uses the lighter default resume background theme', () => {
+    const html = renderResumeHtml(SAMPLE);
+    expect(html).toContain('background: var(--resume-background, #E5F2FF);');
+    expect(html).toContain('html, body, .resume { background: #E5F2FF; }');
+  });
+
+  it('keeps compact date rows flush with the job heading', () => {
+    const html = renderResumeHtml(SAMPLE, undefined, true);
+    expect(html).toContain('.job-sub { margin-top: 0 !important; margin-bottom: 4px !important; }');
+    expect(html).toContain('.job-sub .date { margin: 0 !important; }');
+  });
 });
 
 describe('normalizeContactLinks / isUrlLike', () => {
@@ -193,6 +205,71 @@ describe('normalizeContactLinks / isUrlLike', () => {
     const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Senior Engineer at Acme Corp\n2021 – 2024\n\n- Did stuff.`;
     const html = renderResumeHtml(md);
     expect(html).toContain('<span class="job-company">Acme Corp</span>');
+  });
+
+  it('renders month-abbreviated date lines with correct class', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Principal Software Engineer | Oracle\nSep '24 - Sep '25 | Remote\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('class="date"');
+    expect(html).toMatch(/Sep.+24 - Sep.+25/);
+    expect(html).toContain('<span class="job-location">Remote</span>');
+  });
+
+  it('extracts location when date line has location first: "Columbia, MD | 2019 - 2021"', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Senior Engineer | Tenable\nColumbia, MD | 2019 - 2021\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('class="date"');
+    expect(html).toContain('2019 - 2021');
+    expect(html).toContain('<span class="job-location">Columbia, MD</span>');
+  });
+
+  it('handles 4-pipe heading: "Title | Company | Location | Dates"', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Principal Software Engineer | Oracle | Remote | Sep '24 - Sep '25\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('<span class="job-company">Oracle</span>');
+    expect(html).toContain('<span class="job-location">Remote</span>');
+    expect(html).toContain('class="date"');
+    expect(html).toMatch(/Sep.+24 - Sep.+25/);
+  });
+
+  it('renders apostrophe-only year range as date: "\'09 - \'17"', () => {
+    const md = `# Dev\n## Engineer\n\nfoo@bar.com\n\nlinkedin.com/in/dev\n\n## Experience\n\n### Engineer | JHUAPL\nLaurel, MD | '09 - '17\n\n- Did stuff.`;
+    const html = renderResumeHtml(md);
+    expect(html).toContain('class="date"');
+    expect(html).toContain('<span class="job-location">Laurel, MD</span>');
+  });
+
+  it('normalizes Additional Experience entries into a single pipe-separated paragraph', () => {
+    const md = [
+      '# Dev',
+      '## Engineer',
+      '',
+      'dev@example.com | linkedin.com/in/dev',
+      '',
+      '## Experience',
+      '',
+      '### Senior Engineer | Acme',
+      '2022 – 2024',
+      '',
+      '- Built things.',
+      '',
+      '## Additional Experience',
+      '',
+      '**Software Engineer, Fearless** (2018) — Orchestrated AWS environments with Terraform.',
+      '**Senior Engineer, Philips Healthcare** (2017 – 2018) — Built real-time ICU monitoring.',
+      '',
+      '## Education',
+      '',
+      'MIT — B.S., Computer Science',
+    ].join('\n');
+    const html = renderResumeHtml(md);
+    // Entries should be joined with pipe and rendered in a single paragraph
+    expect(html).toContain('Fearless');
+    expect(html).toContain('Philips Healthcare');
+    expect(html).toContain(' | ');
+    // Should NOT be separate list items
+    const liCount = (html.match(/<li>/g) || []).length;
+    expect(liCount).toBe(1); // only the Experience bullet
   });
 
   it('does NOT count ### headings toward the h2 stop-linkify threshold', () => {

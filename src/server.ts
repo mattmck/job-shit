@@ -13,7 +13,8 @@ import { dirname, join, resolve, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir, tmpdir } from 'os';
 import { loadConfig } from './config.js';
-import { describeProvider } from './lib/ai.js';
+import { complete as defaultComplete, describeProvider } from './lib/ai.js';
+import { diffMarkdown } from './lib/diff.js';
 import { normalizeProviderChoice } from './lib/providers.js';
 import {
   coverLetterSystemPrompt,
@@ -29,6 +30,9 @@ import {
   requireHuntrClient,
 } from './services/huntr.js';
 import { runTailorWorkflow } from './services/runs.js';
+import { analyzeGap, analyzeGapWithAI } from './services/gap.js';
+import { regenerateResumeSection } from './services/review.js';
+import { scoreTailoredOutput } from './services/scoring.js';
 import { listSavedWorkspaces, loadSavedWorkspace, saveWorkspaceSnapshot } from './services/workspace-store.js';
 import { resolveWorkspaceDocuments } from './services/workspace.js';
 import {
@@ -68,7 +72,7 @@ interface HuntrRunBody {
 }
 
 interface ExportPdfBody {
-  kind: 'resume' | 'coverLetter';
+  kind: 'resume' | 'coverLetter' | 'cover-letter';
   title?: string;
   markdown?: string;
   html?: string;
@@ -79,6 +83,46 @@ interface SaveWorkspaceBody {
   id?: string;
   name?: string;
   snapshot: WorkspaceSnapshot;
+}
+
+interface DiffBody {
+  before: string;
+  after: string;
+}
+
+interface GapBody {
+  resume: string;
+  sourceResume?: string;
+  sourceSupplemental?: string;
+  bio?: string;
+  jobDescription: string;
+  jobTitle?: string;
+  useAI?: boolean;
+  model?: string;
+  provider?: string;
+}
+
+interface ScoreBody {
+  resume: string;
+  sourceResume?: string;
+  sourceSupplemental?: string;
+  coverLetter: string;
+  jobDescription: string;
+  company?: string;
+  jobTitle?: string;
+  bio?: string;
+  model?: string;
+  provider?: string;
+}
+
+interface RegenerateSectionBody {
+  resume: string;
+  bio: string;
+  jobDescription: string;
+  jobTitle?: string;
+  sectionId: string;
+  model?: string;
+  verbose?: boolean;
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
@@ -99,8 +143,23 @@ function sendHtml(res: ServerResponse, html: string): void {
 
 function sanitizeFilename(raw: string): string {
   // Strip path separators, CR/LF, quotes; fallback to safe default
-  const safe = raw.replace(/[\r\n"\/\\]/g, '').trim();
+  const safe = raw.replace(/[\r\n"/\\]/g, '').trim();
   return safe || 'download.pdf';
+}
+
+/**
+ * Normalize kind variants at entry point.
+ * Accepts both 'cover-letter' and 'coverLetter', normalizes to 'coverLetter' internally.
+ * This ensures all downstream code only uses the canonical 'coverLetter' variant.
+ */
+export function normalizeExportKind(kind: unknown): 'resume' | 'coverLetter' {
+  if (kind === 'cover-letter') {
+    return 'coverLetter';
+  }
+  if (kind !== 'resume' && kind !== 'coverLetter') {
+    throw new Error(`Unknown export kind: ${kind}`);
+  }
+  return kind;
 }
 
 function sendPdf(res: ServerResponse, filename: string, pdf: Buffer): void {
@@ -127,6 +186,12 @@ async function readJsonBody<T>(req: IncomingMessage): Promise<T> {
 }
 
 async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; pdf: Buffer }> {
+  // Validate kind before using it in filesystem paths. Should only be 'resume' or 'coverLetter'
+  // after normalization at entry points (lines 677, 687). This is a defensive check.
+  if (!['resume', 'coverLetter'].includes(body.kind)) {
+    throw new Error(`Unknown export kind: ${body.kind}`);
+  }
+
   const dir = mkdtempSync(join(tmpdir(), 'job-shit-export-'));
   try {
     const htmlPath = join(dir, `${body.kind}.html`);
@@ -149,16 +214,22 @@ async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; 
       };
     }
 
-    if (!body.html) {
-      throw new Error('Cover letter PDF export requires HTML.');
+    // Only 'coverLetter' variant (normalized at entry point)
+    if (body.kind === 'coverLetter') {
+      if (!body.markdown && !body.html) {
+        throw new Error('Cover letter PDF export requires markdown or HTML.');
+      }
+      const html = body.html ?? renderCoverLetterHtml(body.markdown!, body.title ?? 'Cover Letter', body.theme);
+      writeFileSync(htmlPath, html, 'utf8');
+      await renderPdf(htmlPath, pdfPath);
+      return {
+        filename: 'cover-letter.pdf',
+        pdf: readFileSync(pdfPath),
+      };
     }
 
-    writeFileSync(htmlPath, body.html, 'utf8');
-    await renderPdf(htmlPath, pdfPath);
-    return {
-      filename: 'cover-letter.pdf',
-      pdf: readFileSync(pdfPath),
-    };
+    // This should never happen since normalization validates the kind early
+    throw new Error(`Unknown export kind: ${body.kind}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -166,6 +237,14 @@ async function buildPdfBuffer(body: ExportPdfBody): Promise<{ filename: string; 
 
 function readWorkbenchHtml(): string {
   return readFileSync(join(__dirname, 'workbench', 'index.html'), 'utf8');
+}
+
+function readWorkbenchV2Html(): string {
+  const packaged = join(__dirname, 'workbench', 'index-v2.html');
+  if (existsSync(packaged)) {
+    return readFileSync(packaged, 'utf8');
+  }
+  return readFileSync(join(process.cwd(), 'src', 'workbench', 'index-v2.html'), 'utf8');
 }
 
 function readResumeEditorHtml(): string {
@@ -520,17 +599,96 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
     return;
   }
 
+  if (method === 'POST' && url.pathname === '/api/diff') {
+    const body = await readJsonBody<DiffBody>(req);
+    sendJson(res, 200, diffMarkdown(body.before ?? '', body.after ?? ''));
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/gap') {
+    const body = await readJsonBody<GapBody>(req);
+    if (body.useAI) {
+      const config = loadConfig();
+      const preferredProvider = normalizeProviderChoice(body.provider) ?? config.scoringProvider ?? config.tailoringProvider;
+      const result = await analyzeGapWithAI(
+        body.sourceResume ?? body.resume ?? '',
+        body.bio ?? '',
+        body.jobDescription ?? '',
+        body.jobTitle,
+        body.model ?? config.tailoringModel,
+        (model, systemPrompt, userPrompt, verbose) =>
+          defaultComplete(model, systemPrompt, userPrompt, verbose, { provider: preferredProvider }),
+      );
+      sendJson(res, 200, result);
+      return;
+    }
+
+    sendJson(res, 200, analyzeGap(body.sourceResume ?? body.resume ?? '', body.jobDescription ?? '', body.jobTitle));
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/score') {
+    const body = await readJsonBody<ScoreBody>(req);
+    const config = loadConfig();
+    const preferredProvider = normalizeProviderChoice(body.provider) ?? config.scoringProvider ?? config.tailoringProvider;
+    const scorecard = await scoreTailoredOutput({
+      input: {
+        resume: body.sourceResume ?? body.resume,
+        bio: body.bio ?? '',
+        jobDescription: body.jobDescription,
+        company: body.company ?? '',
+        jobTitle: body.jobTitle ?? '',
+        resumeSupplemental: body.sourceSupplemental ?? '',
+      },
+      output: {
+        resume: body.resume,
+        coverLetter: body.coverLetter,
+      },
+      scoringModel: body.model ?? config.scoringModel,
+      complete: (model, systemPrompt, userPrompt, verbose) =>
+        defaultComplete(model, systemPrompt, userPrompt, verbose, { provider: preferredProvider }),
+    });
+    sendJson(res, 200, scorecard);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/regenerate-section') {
+    const body = await readJsonBody<RegenerateSectionBody>(req);
+    if (typeof body.sectionId !== 'string' || body.sectionId.trim() === '') {
+      sendJson(res, 400, { error: 'sectionId is required' });
+      return;
+    }
+    const config = loadConfig();
+    const result = await regenerateResumeSection({
+      resume: body.resume ?? '',
+      bio: body.bio ?? '',
+      jobDescription: body.jobDescription ?? '',
+      jobTitle: body.jobTitle,
+      sectionId: body.sectionId,
+      model: body.model ?? config.tailoringModel,
+      verbose: body.verbose ?? false,
+    });
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (method === 'POST' && url.pathname === '/api/render') {
-    const body = await readJsonBody<{ markdown: string; kind: 'resume' | 'coverLetter'; title?: string; theme?: ResumeTheme }>(req);
-    const html = body.kind === 'resume'
-      ? renderResumeHtml(body.markdown, body.title || 'Resume', false, body.theme)
-      : renderCoverLetterHtml(body.markdown, body.title || 'Cover Letter', body.theme);
+    const rawBody = await readJsonBody<{ markdown: string; kind: unknown; title?: string; theme?: ResumeTheme }>(req);
+    const kind = normalizeExportKind(rawBody.kind);
+    const html = kind === 'resume'
+      ? renderResumeHtml(rawBody.markdown, rawBody.title || 'Resume', false, rawBody.theme)
+      : renderCoverLetterHtml(rawBody.markdown, rawBody.title || 'Cover Letter', rawBody.theme);
     sendJson(res, 200, { html });
     return;
   }
 
   if (method === 'POST' && url.pathname === '/api/export/pdf') {
-    const body = await readJsonBody<ExportPdfBody>(req);
+    const rawBody = await readJsonBody<{ kind: unknown; title?: string; markdown?: string; html?: string; theme?: Partial<ResumeTheme> }>(req);
+    const kind = normalizeExportKind(rawBody.kind);
+    const body: ExportPdfBody = {
+      ...rawBody,
+      kind,
+    };
     const result = await buildPdfBuffer(body);
     sendPdf(res, result.filename, result.pdf);
     return;
@@ -548,6 +706,10 @@ export async function startWorkbenchServer(
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/') {
         sendHtml(res, readWorkbenchHtml());
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/v2') {
+        sendHtml(res, readWorkbenchV2Html());
         return;
       }
       if (req.method === 'GET' && url.pathname === '/resume-editor') {

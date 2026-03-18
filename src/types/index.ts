@@ -83,15 +83,52 @@ export interface HeuristicScorecard {
   warnings: string[];
 }
 
+/** Submission verdict for a scored document. */
+export type ScoreVerdict =
+  | 'strong_submit'
+  | 'submit_after_minor_edits'
+  | 'needs_revision'
+  | 'do_not_submit';
+
+/** Normalized per-document evaluator scorecard. */
+export interface EvaluatorDocumentScorecard {
+  document: string;
+  overall: number;
+  atsCompatibility?: number;
+  keywordCoverage?: number;
+  recruiterClarity?: number;
+  hrClarity?: number;
+  hiringMgrClarity?: number;
+  tailoringAlignment?: number;
+  completionReadiness?: number;
+  evidenceStrength?: number;
+  aiObviousness?: number;
+  factualRisk?: number;
+  confidence?: number;
+  verdict?: ScoreVerdict | string;
+  blockingIssues: string[];
+  notes: string[];
+}
+
 /** Optional evaluator-model review. */
 export interface EvaluatorScorecard {
-  overall: number;
-  atsCompatibility: number;
-  recruiterClarity: number;
-  hrClarity: number;
-  aiObviousness: number;
-  factualRisk: number;
+  /** Primary/legacy summary fields mirrored from the resume or first document. */
+  overall?: number;
+  atsCompatibility?: number;
+  keywordCoverage?: number;
+  recruiterClarity?: number;
+  hrClarity?: number;
+  hiringMgrClarity?: number;
+  tailoringAlignment?: number;
+  completionReadiness?: number;
+  evidenceStrength?: number;
+  aiObviousness?: number;
+  factualRisk?: number;
+  confidence?: number;
+  verdict?: ScoreVerdict | string;
+  blockingIssues?: string[];
   notes: string[];
+  documents: EvaluatorDocumentScorecard[];
   raw?: string;
 }
 
@@ -112,6 +149,8 @@ export interface TailorRunResult {
   output: TailorOutput;
   artifacts: TailorArtifacts;
   scorecard?: RunScorecard;
+  diff?: DiffResult;
+  gapAnalysis?: GapAnalysis;
 }
 
 export interface SavedHuntrJob {
@@ -152,10 +191,21 @@ export interface WorkspaceSnapshot {
     baseCoverLetter: string;
     resumeSupplemental: string;
   };
+  documentSources?: {
+    resume?: string;
+    bio?: string;
+    baseCoverLetter?: string;
+    resumeSupplemental?: string;
+  };
   prompts: {
     resumeSystem: string;
     coverLetterSystem: string;
     scoringSystem: string;
+  };
+  promptSources?: {
+    resumeSystem?: string;
+    coverLetterSystem?: string;
+    scoringSystem?: string;
   };
   theme: ResumeTheme;
   agents: AgentSelection;
@@ -172,7 +222,22 @@ export interface WorkspaceSnapshot {
   /** Manually added jobs. */
   manualJobs?: SavedHuntrJob[];
   /** Persisted UI layout state. */
-  uiState?: { openPanels: string[] };
+  uiState?: {
+    openPanels: string[];
+    jobListFilter?: string;
+  };
+  /** Full saved job list (all jobs with their results/status). */
+  savedJobs?: Array<{
+    id: string;
+    company: string;
+    title: string;
+    jd: string;
+    source: 'huntr' | 'manual';
+    status: string;
+    result?: TailorRunResult | null;
+  }>;
+  /** Which job was active at save time. */
+  activeJobId?: string;
 }
 
 export interface SavedWorkspace {
@@ -202,4 +267,89 @@ export interface Config {
   tailoringModels: string[];
   scoringModels: string[];
   providers: ProviderOption[];
+}
+
+// ── Diff ─────────────────────────────────────────────────────────────────
+
+/** A contiguous block of diff lines sharing the same change type. */
+export interface DiffHunk {
+  type: 'added' | 'removed' | 'unchanged';
+  lines: string[];
+}
+
+/** Result of diffing two documents. */
+export interface DiffResult {
+  hunks: DiffHunk[];
+  stats: { added: number; removed: number; unchanged: number };
+}
+
+// ── Gap Analysis ─────────────────────────────────────────────────────────
+
+/** Keyword categorization. */
+export type KeywordCategory =
+  | 'language'
+  | 'framework'
+  | 'tool'
+  | 'platform'
+  | 'soft-skill'
+  | 'certification'
+  | 'methodology'
+  | 'other';
+
+/** A categorized keyword or phrase extracted from a JD. */
+export interface CategorizedKeyword {
+  term: string;
+  category: KeywordCategory;
+}
+
+/** A partial match between a JD term and a resume term. */
+export interface PartialMatch {
+  jdTerm: string;
+  resumeTerm: string;
+  relationship: string;
+}
+
+/** Years-of-experience requirement extracted from a JD. */
+export interface ExperienceRequirement {
+  skill: string;
+  years: number;
+  isRequired: boolean;
+}
+
+/** Heuristic gap analysis result (no AI needed). */
+export interface GapAnalysis {
+  matchedKeywords: CategorizedKeyword[];
+  missingKeywords: CategorizedKeyword[];
+  partialMatches: PartialMatch[];
+  experienceRequirements: ExperienceRequirement[];
+  overallFit: 'strong' | 'moderate' | 'weak';
+}
+
+/** AI-enriched gap analysis (extends heuristic). */
+export interface EnrichedGapAnalysis extends GapAnalysis {
+  narrative: string;
+  tailoringHints: string[];
+}
+
+// ── Resume Sections ──────────────────────────────────────────────────────
+
+/** Type of resume section detected from heading content. */
+export type ResumeSectionType =
+  | 'header'
+  | 'summary'
+  | 'experience'
+  | 'education'
+  | 'skills'
+  | 'projects'
+  | 'certifications'
+  | 'other';
+
+/** A parsed section of a markdown resume. */
+export interface ResumeSection {
+  id: string;
+  type: ResumeSectionType;
+  heading: string;
+  headingLevel: number;
+  content: string;
+  bullets: string[];
 }

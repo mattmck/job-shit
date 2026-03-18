@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workbench flow · job-shit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f1faff;
+      --dark:        #3f4756;
+      --mid:         #708090;
+      --text:        #444;
+      --border:      rgba(63,71,86,0.11);
+      --border-soft: rgba(63,71,86,0.06);
+      --accent:      #be503c;
+      --blue:        #3b72a8;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 80px 40px 120px;
+    }
+
+    /* ── Header ──────────────────────────────────── */
+
+    .header {
+      margin-bottom: 64px;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: reveal 0.5s ease 0.04s forwards;
+    }
+
+    .header-eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--mid);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-eyebrow::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .header-title {
+      font-family: 'Crimson Pro', serif;
+      font-size: 42px;
+      font-weight: 600;
+      color: var(--dark);
+      line-height: 1.05;
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
+    }
+
+    .header-sub {
+      font-family: 'Crimson Pro', serif;
+      font-size: 17px;
+      font-style: italic;
+      color: var(--mid);
+      line-height: 1.5;
+    }
+
+    /* ── Animations ──────────────────────────────── */
+
+    @keyframes reveal {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .flow-item {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: reveal 0.45s ease forwards;
+    }
+
+    /* ── Two-track layout ────────────────────────── */
+
+    .tracks {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 0;
+      align-items: start;
+      position: relative;
+    }
+
+    .track-divider {
+      position: absolute;
+      left: calc(100% - 320px - 32px);
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--border);
+    }
+
+    .track-left  { padding-right: 48px; }
+    .track-right { padding-left: 16px; }
+
+    /* ── Track headings ──────────────────────────── */
+
+    .track-heading {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.55;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .track-heading::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Section label ───────────────────────────── */
+
+    .section-eyebrow {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.6;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-eyebrow::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Stage wrapper ───────────────────────────── */
+
+    .stage-row { display: flex; align-items: flex-start; gap: 20px; }
+
+    .stage-gutter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 1px;
+      width: 28px;
+      flex-shrink: 0;
+    }
+
+    .stage-num {
+      font-size: 10px;
+      color: var(--mid);
+      letter-spacing: 0.08em;
+      opacity: 0.5;
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+
+    .stage-track { width: 1px; flex: 1; min-height: 24px; background: var(--border); }
+
+    .stage-body { flex: 1; padding-bottom: 20px; }
+
+    .stage-label {
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.65;
+      margin-bottom: 12px;
+    }
+
+    /* ── Connector ───────────────────────────────── */
+
+    .connector-row {
+      display: flex;
+      gap: 20px;
+      align-items: stretch;
+      height: 28px;
+    }
+
+    .connector-gutter {
+      width: 28px;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .connector-line {
+      width: 1px;
+      height: 100%;
+      background: var(--border);
+      position: relative;
+    }
+
+    .connector-line.with-arrow::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 3px solid transparent;
+      border-right: 3px solid transparent;
+      border-top: 4px solid var(--mid);
+      opacity: 0.35;
+    }
+
+    /* ── Generic card ────────────────────────────── */
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 22px 24px;
+    }
+
+    .note {
+      font-size: 10px;
+      color: var(--mid);
+      opacity: 0.55;
+      line-height: 1.5;
+    }
+
+    /* ── User action block ───────────────────────── */
+
+    .user-block {
+      border: 1px dashed rgba(112,128,144,0.28);
+      border-radius: 4px;
+      padding: 12px 14px;
+      background: var(--border-soft);
+    }
+
+    .user-block-label {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.6;
+      margin-bottom: 8px;
+    }
+
+    .user-block-text {
+      font-size: 11px;
+      color: var(--mid);
+      line-height: 1.55;
+    }
+
+    /* ── Doc description list ────────────────────── */
+
+    .doc-list { display: flex; flex-direction: column; gap: 0; }
+
+    .doc-row {
+      display: grid;
+      grid-template-columns: 148px 1fr;
+      gap: 12px;
+      align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .doc-row:first-child { border-top: 1px solid var(--border-soft); }
+
+    .doc-name {
+      font-size: 10px;
+      color: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+    }
+
+    .doc-badge {
+      font-size: 8px;
+      padding: 2px 5px;
+      border-radius: 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .doc-badge.req  { background: var(--dark); color: var(--bg); }
+    .doc-badge.opt  { border: 1px solid rgba(112,128,144,0.28); color: var(--mid); }
+    .doc-badge.api  { background: var(--blue); color: #fff; }
+    .doc-badge.ui   { background: var(--accent); color: #fff; }
+
+    .doc-desc { font-size: 10px; color: var(--mid); line-height: 1.5; opacity: 0.8; }
+
+    /* ── Discovery grid ──────────────────────────── */
+
+    .discovery-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .path-card {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .path-card-head {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .path-tag { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--mid); opacity: 0.65; }
+    .path-cmd { font-size: 10px; color: var(--dark); opacity: 0.55; }
+
+    .path-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .path-row {
+      font-size: 11px;
+      color: var(--dark);
+      display: flex;
+      gap: 7px;
+      align-items: flex-start;
+    }
+
+    .path-row::before { content: '·'; color: var(--mid); opacity: 0.4; flex-shrink: 0; }
+    .path-row.muted { color: var(--mid); }
+
+    .path-section { display: flex; flex-direction: column; gap: 8px; }
+
+    .path-section-label {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.5;
+      margin-bottom: 2px;
+    }
+
+    /* ── Merge connector ─────────────────────────── */
+
+    .merge-row {
+      position: relative;
+      height: 48px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .merge-row svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: visible;
+    }
+
+    /* ── Parallel card (dark) ────────────────────── */
+
+    .parallel-card {
+      background: var(--dark);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .parallel-head {
+      padding: 13px 22px;
+      border-bottom: 1px solid rgba(241,250,255,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .parallel-head-label { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(241,250,255,0.3); }
+
+    .promise-badge {
+      font-size: 11px;
+      color: rgba(241,250,255,0.8);
+      background: rgba(241,250,255,0.07);
+      border: 1px solid rgba(241,250,255,0.12);
+      padding: 3px 10px;
+      border-radius: 3px;
+    }
+
+    .streams { display: grid; grid-template-columns: 1fr 1fr; }
+
+    .stream { padding: 22px; }
+    .stream:first-child { border-right: 1px solid rgba(241,250,255,0.07); }
+
+    .stream-name { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(241,250,255,0.35); margin-bottom: 15px; }
+
+    .stream-steps { display: flex; flex-direction: column; gap: 9px; }
+
+    .stream-step { font-size: 11px; color: rgba(241,250,255,0.7); display: flex; gap: 8px; }
+    .stream-step::before { content: '·'; color: rgba(241,250,255,0.2); flex-shrink: 0; }
+
+    .stream-footer {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(241,250,255,0.05);
+      font-size: 10px;
+      color: rgba(241,250,255,0.25);
+      line-height: 1.6;
+    }
+
+    /* ── Provider chain ──────────────────────────── */
+
+    .provider-chain { display: flex; align-items: center; flex-wrap: wrap; row-gap: 8px; }
+
+    .provider {
+      font-size: 12px;
+      color: var(--dark);
+      padding: 5px 11px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: #fff;
+    }
+
+    .p-arrow { font-size: 11px; color: var(--mid); opacity: 0.4; padding: 0 7px; }
+
+    /* ── Pipeline ────────────────────────────────── */
+
+    .pipeline { display: flex; align-items: center; flex-wrap: wrap; row-gap: 8px; }
+    .pl-step  { font-size: 11px; color: var(--dark); }
+    .pl-arrow { font-size: 10px; color: var(--mid); opacity: 0.4; padding: 0 8px; }
+
+    /* ── Outputs ─────────────────────────────────── */
+
+    .output-groups { display: flex; flex-direction: column; gap: 18px; }
+
+    .output-group-label {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.55;
+      margin-bottom: 9px;
+    }
+
+    .output-files { display: flex; gap: 7px; flex-wrap: wrap; }
+
+    .out-file {
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      color: var(--dark);
+      background: #fff;
+    }
+
+    .out-file.dim { color: var(--mid); background: var(--border-soft); border-color: transparent; }
+
+    /* ── Right track: browser panels ─────────────── */
+
+    .strack-stage { margin-bottom: 0; }
+
+    .strack-label {
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--mid);
+      opacity: 0.65;
+      margin-bottom: 10px;
+    }
+
+    .strack-connector {
+      display: flex;
+      justify-content: center;
+      height: 28px;
+      padding: 0;
+    }
+
+    .strack-connector-line {
+      width: 1px;
+      height: 100%;
+      background: var(--border);
+      position: relative;
+    }
+
+    .strack-connector-line.with-arrow::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 3px solid transparent;
+      border-right: 3px solid transparent;
+      border-top: 4px solid var(--mid);
+      opacity: 0.35;
+    }
+
+    /* ── Panel list ──────────────────────────────── */
+
+    .panel-list { display: flex; flex-direction: column; gap: 0; }
+
+    .panel-row {
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .panel-row:first-child { border-top: 1px solid var(--border-soft); }
+
+    .panel-name { font-size: 10px; color: var(--dark); line-height: 1; }
+    .panel-desc { font-size: 10px; color: var(--mid); opacity: 0.7; line-height: 1.4; }
+
+    /* ── Endpoint list ───────────────────────────── */
+
+    .endpoint-list { display: flex; flex-direction: column; gap: 0; }
+
+    .endpoint-row {
+      display: grid;
+      grid-template-columns: 50px 1fr;
+      gap: 8px;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .endpoint-row:first-child { border-top: 1px solid var(--border-soft); }
+
+    .endpoint-method {
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      padding: 2px 6px;
+      border-radius: 2px;
+      text-align: center;
+    }
+
+    .endpoint-method.get  { background: rgba(59,114,168,0.1); color: var(--blue); }
+    .endpoint-method.post { background: rgba(190,80,60,0.1); color: var(--accent); }
+
+    .endpoint-path { font-size: 10px; color: var(--dark); }
+
+    /* ── Prompt preview ──────────────────────────── */
+
+    .prompt-preview {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(0,0,0,0.18);
+      border-radius: 3px;
+      border: 1px solid rgba(241,250,255,0.05);
+    }
+
+    .prompt-opening {
+      font-family: 'Crimson Pro', serif;
+      font-style: italic;
+      font-size: 12.5px;
+      color: rgba(241,250,255,0.5);
+      line-height: 1.55;
+      margin-bottom: 11px;
+    }
+
+    .prompt-rules { display: flex; flex-direction: column; gap: 5px; }
+
+    .prompt-rule { font-size: 10px; color: rgba(241,250,255,0.28); line-height: 1.5; display: flex; gap: 7px; }
+    .prompt-rule::before { content: '—'; flex-shrink: 0; opacity: 0.4; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ───────────────────────────────── -->
+  <div class="header">
+    <div class="header-eyebrow">job-shit · architecture</div>
+    <h1 class="header-title">Workbench Flow</h1>
+    <p class="header-sub">Browser-based resume workbench — Express server + single-page app.<br>Sources in, AI tailoring, structured editing, scored preview out.</p>
+  </div>
+
+  <!-- ── Two-track layout ──────────────────────── -->
+  <div class="tracks flow-item" style="animation-delay:0.08s">
+    <div class="track-divider"></div>
+
+    <!-- ════════════════════════════════════════════
+         LEFT TRACK — Server + API Pipeline
+         ════════════════════════════════════════════ -->
+    <div class="track-left">
+
+      <div class="track-heading">Server · API Pipeline</div>
+
+      <!-- INIT -->
+      <div class="section-eyebrow" style="margin-bottom:14px">Initialization · App Load</div>
+      <div class="discovery-grid" style="margin-bottom:0">
+
+        <!-- Boot: config -->
+        <div class="path-card">
+          <div class="path-card-head">
+            <span class="path-tag">config</span>
+            <span class="path-cmd">GET /api/config</span>
+          </div>
+          <div class="path-body">
+            <div class="path-section">
+              <div class="path-section-label">returns</div>
+              <div class="path-row">defaultModel · provider chain</div>
+              <div class="path-row">tailoring + scoring agent options</div>
+              <div class="path-row">available models per provider</div>
+            </div>
+            <p class="note">loadConfig() → describeProvider()</p>
+          </div>
+        </div>
+
+        <!-- Boot: local docs -->
+        <div class="path-card">
+          <div class="path-card-head">
+            <span class="path-tag">sources</span>
+            <span class="path-cmd">GET /api/workspace/local</span>
+          </div>
+          <div class="path-body">
+            <div class="path-section">
+              <div class="path-section-label">discovers</div>
+              <div class="path-row">resume*.md · bio*.md</div>
+              <div class="path-row">cover-letter*.md (opt)</div>
+              <div class="path-row">resume-supplemental*.md (opt)</div>
+            </div>
+            <p class="note">CWD → ~/.job-shit/ fallback</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- merge -->
+      <div class="merge-row">
+        <svg viewBox="0 0 660 48" preserveAspectRatio="none" fill="none">
+          <path d="M 165 0 L 330 44" stroke="rgba(63,71,86,0.13)" stroke-width="1"/>
+          <path d="M 495 0 L 330 44" stroke="rgba(63,71,86,0.13)" stroke-width="1"/>
+          <path d="M 327 40 L 330 46 L 333 40" stroke="rgba(112,128,144,0.35)" stroke-width="1" fill="none"/>
+        </svg>
+      </div>
+
+      <!-- 01 JOB INPUT -->
+      <div class="stage-row">
+        <div class="stage-gutter">
+          <div class="stage-num">01</div>
+          <div class="stage-track"></div>
+        </div>
+        <div class="stage-body">
+          <div class="stage-label">Job Input</div>
+          <div class="discovery-grid">
+            <div class="path-card">
+              <div class="path-card-head">
+                <span class="path-tag">huntr</span>
+                <span class="path-cmd">GET /api/huntr/jobs</span>
+              </div>
+              <div class="path-body">
+                <div class="path-row">resolveHuntrToken()</div>
+                <div class="path-row">fetch boards → filter by stage</div>
+                <div class="path-row">extractCompanyName() · stripHtml()</div>
+              </div>
+            </div>
+            <div class="path-card">
+              <div class="path-card-head">
+                <span class="path-tag">manual</span>
+                <span class="path-cmd">+ Paste JD</span>
+              </div>
+              <div class="path-body">
+                <div class="user-block">
+                  <div class="user-block-label">user</div>
+                  <div class="user-block-text">pastes job description · enters company name and title</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector-row">
+        <div class="connector-gutter"><div class="connector-line with-arrow"></div></div>
+      </div>
+
+      <!-- 02 TAILOR -->
+      <div class="stage-row">
+        <div class="stage-gutter">
+          <div class="stage-num">02</div>
+          <div class="stage-track"></div>
+        </div>
+        <div class="stage-body">
+          <div class="stage-label">Tailor · POST /api/runs/manual</div>
+          <div class="parallel-card">
+            <div class="parallel-head">
+              <span class="parallel-head-label">runTailorWorkflow()</span>
+              <span class="promise-badge">Promise.all()</span>
+            </div>
+            <div class="streams">
+              <div class="stream">
+                <div class="stream-name">Resume</div>
+                <div class="stream-steps">
+                  <div class="stream-step">resumeSystemPrompt()</div>
+                  <div class="stream-step">resumeUserPrompt(input)</div>
+                  <div class="stream-step">complete(model, sys, usr)</div>
+                </div>
+                <div class="prompt-preview">
+                  <div class="prompt-opening">"You are an expert resume writer…"</div>
+                  <div class="prompt-rules">
+                    <div class="prompt-rule">NEVER invent experience</div>
+                    <div class="prompt-rule">### Title | Company format</div>
+                    <div class="prompt-rule">Must fit one page as PDF</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stream">
+                <div class="stream-name">Cover Letter</div>
+                <div class="stream-steps">
+                  <div class="stream-step">coverLetterSystemPrompt()</div>
+                  <div class="stream-step">coverLetterUserPrompt(input)</div>
+                  <div class="stream-step">complete(model, sys, usr)</div>
+                </div>
+                <div class="prompt-preview">
+                  <div class="prompt-opening">"Sharp, confident, non-generic…"</div>
+                  <div class="prompt-rules">
+                    <div class="prompt-rule">3 paragraphs, no filler</div>
+                    <div class="prompt-rule">Tone: dangerous, not desperate</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector-row">
+        <div class="connector-gutter"><div class="connector-line with-arrow"></div></div>
+      </div>
+
+      <!-- 03 POST-PROCESS -->
+      <div class="stage-row">
+        <div class="stage-gutter">
+          <div class="stage-num">03</div>
+          <div class="stage-track"></div>
+        </div>
+        <div class="stage-body">
+          <div class="stage-label">Post-Process · Server-Side</div>
+          <div class="parallel-card">
+            <div class="parallel-head">
+              <span class="parallel-head-label">parallel post-processing</span>
+              <span class="promise-badge">Promise.all()</span>
+            </div>
+            <div class="streams">
+              <div class="stream">
+                <div class="stream-name">Render</div>
+                <div class="stream-steps">
+                  <div class="stream-step">renderResumeHtml(md, theme)</div>
+                  <div class="stream-step">renderCoverLetterHtml(md)</div>
+                  <div class="stream-step">marked → sanitize → styled HTML</div>
+                </div>
+                <div class="stream-footer">custom renderer · parseJobHeading()<br>normalizeJobHeading() · looksLikeDate()</div>
+              </div>
+              <div class="stream">
+                <div class="stream-name">Analyze</div>
+                <div class="stream-steps">
+                  <div class="stream-step">scoreTailoredOutput()</div>
+                  <div class="stream-step">diffMarkdown(before, after)</div>
+                  <div class="stream-step">analyzeGapWithAI()</div>
+                </div>
+                <div class="stream-footer">heuristic + AI evaluator scoring<br>keyword gap · partial match detection</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector-row">
+        <div class="connector-gutter"><div class="connector-line with-arrow"></div></div>
+      </div>
+
+      <!-- 04 RESPONSE -->
+      <div class="stage-row">
+        <div class="stage-gutter">
+          <div class="stage-num">04</div>
+        </div>
+        <div class="stage-body">
+          <div class="stage-label">Response · TailorRunResult</div>
+          <div class="card">
+            <div class="output-groups">
+              <div>
+                <div class="output-group-label">output</div>
+                <div class="output-files">
+                  <span class="out-file">resume (md)</span>
+                  <span class="out-file">coverLetter (md)</span>
+                </div>
+              </div>
+              <div>
+                <div class="output-group-label">artifacts</div>
+                <div class="output-files">
+                  <span class="out-file">resumeHtml</span>
+                  <span class="out-file">coverLetterHtml</span>
+                </div>
+              </div>
+              <div>
+                <div class="output-group-label">analysis</div>
+                <div class="output-files">
+                  <span class="out-file dim">scorecard</span>
+                  <span class="out-file dim">diff</span>
+                  <span class="out-file dim">gapAnalysis</span>
+                </div>
+              </div>
+            </div>
+            <p class="note" style="margin-top:16px">single JSON response · all panels populated from one call</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /track-left -->
+
+    <!-- ════════════════════════════════════════════
+         RIGHT TRACK — Browser / UI Panels
+         ════════════════════════════════════════════ -->
+    <div class="track-right">
+
+      <div class="track-heading">Browser · UI Panels</div>
+
+      <!-- STATE -->
+      <div class="strack-stage" style="margin-bottom:0">
+        <div class="strack-label">State Management</div>
+        <div class="card" style="padding:18px 20px">
+          <div class="panel-list">
+            <div class="panel-row">
+              <div class="panel-name">state.jobs[]</div>
+              <div class="panel-desc">job queue — company, title, JD, status, result</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">state.source*</div>
+              <div class="panel-desc">resume, bio, cover letter, supplemental docs</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">state.activeDoc</div>
+              <div class="panel-desc">'resume' | 'cover' — which tab is active</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">state.viewMode</div>
+              <div class="panel-desc">'preview' | 'diff' — render toggle</div>
+            </div>
+          </div>
+          <p class="note" style="margin-top:12px">single mutable state object · render*() on change</p>
+        </div>
+      </div>
+
+      <div class="strack-connector">
+        <div class="strack-connector-line with-arrow"></div>
+      </div>
+
+      <!-- PANELS -->
+      <div class="strack-stage" style="margin-bottom:0">
+        <div class="strack-label">UI Panels</div>
+        <div class="card" style="padding:18px 20px">
+          <div class="panel-list">
+            <div class="panel-row">
+              <div class="panel-name">Jobs sidebar</div>
+              <div class="panel-desc">list, select, filter by source/stage</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">Score cards</div>
+              <div class="panel-desc">resume + cover letter scores, verdict badges</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">Structured editor</div>
+              <div class="panel-desc">parseMarkdown() → editable fields + bullets</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">Preview / Diff</div>
+              <div class="panel-desc">rendered HTML or line-by-line diff view</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">Missing keywords</div>
+              <div class="panel-desc">gap analysis chips from gapAnalysis result</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">Theme bar</div>
+              <div class="panel-desc">8 color pickers + presets → CSS vars</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="strack-connector">
+        <div class="strack-connector-line with-arrow"></div>
+      </div>
+
+      <!-- EDITING -->
+      <div class="strack-stage" style="margin-bottom:0">
+        <div class="strack-label">Editing · Client-Side</div>
+        <div class="card" style="padding:18px 20px">
+          <div class="panel-list">
+            <div class="panel-row">
+              <div class="panel-name">parseMarkdown(md)</div>
+              <div class="panel-desc">md → {name, role, sections[{jobs, bullets}]}</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">normalizeJobHeading</div>
+              <div class="panel-desc">swap title/company if AI flips order</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">parseDateString()</div>
+              <div class="panel-desc">2/4-digit years, month abbrevs → dropdowns</div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-name">toMarkdown(data)</div>
+              <div class="panel-desc">editor fields → ### Title | Company format</div>
+            </div>
+          </div>
+          <p class="note" style="margin-top:12px">edits re-render preview via POST /api/render</p>
+        </div>
+      </div>
+
+      <div class="strack-connector">
+        <div class="strack-connector-line with-arrow"></div>
+      </div>
+
+      <!-- EXPORT -->
+      <div class="strack-stage">
+        <div class="strack-label">Export · Download</div>
+        <div class="card" style="padding:18px 20px">
+          <div class="output-files" style="flex-direction:column; gap:6px">
+            <span class="out-file" style="display:inline-block">📋 Copy markdown</span>
+            <span class="out-file" style="display:inline-block">📋 Copy HTML</span>
+            <span class="out-file" style="display:inline-block">📄 Download PDF → POST /api/export/pdf</span>
+          </div>
+          <p class="note" style="margin-top:12px">PDF uses Chrome headless · renderResumePdfFit()</p>
+        </div>
+      </div>
+
+    </div><!-- /track-right -->
+  </div><!-- /tracks -->
+
+  <!-- ── API Endpoints Reference ─────────────── -->
+  <div class="flow-item" style="animation-delay:0.24s; margin-top: 64px;">
+    <div class="section-eyebrow">API Endpoints · Express Server (port 4312)</div>
+    <div class="card" style="padding:24px 28px">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px">
+        <div>
+          <div class="output-group-label" style="margin-bottom:12px">Read</div>
+          <div class="endpoint-list">
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/config</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/workspace/local</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/workspaces</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/workspaces/:id</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/huntr/jobs</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/files/check</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method get">GET</span>
+              <span class="endpoint-path">/api/files/read</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="output-group-label" style="margin-bottom:12px">Write / Generate</div>
+          <div class="endpoint-list">
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/runs/manual</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/render</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/score</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/diff</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/gap</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/export/pdf</span>
+            </div>
+            <div class="endpoint-row">
+              <span class="endpoint-method post">POST</span>
+              <span class="endpoint-path">/api/workspaces/save</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Workspace Persistence ───────────────── -->
+  <div class="flow-item" style="animation-delay:0.32s; margin-top: 32px;">
+    <div class="section-eyebrow">Workspace Persistence · ~/.job-shit/workspaces/</div>
+    <div class="card" style="padding:24px 28px">
+      <div class="pipeline" style="margin-bottom:16px">
+        <span class="pl-step">Browser state</span>
+        <span class="pl-arrow">→</span>
+        <span class="pl-step">POST /api/workspaces/save</span>
+        <span class="pl-arrow">→</span>
+        <span class="pl-step">{id}.json</span>
+        <span class="pl-arrow">→</span>
+        <span class="pl-step">GET /api/workspaces/:id</span>
+        <span class="pl-arrow">→</span>
+        <span class="pl-step">restore state</span>
+      </div>
+      <div class="doc-list">
+        <div class="doc-row">
+          <div class="doc-name"><span class="doc-badge req">snap</span>documents</div>
+          <div class="doc-desc">resume, bio, cover letter, supplemental — frozen at save time</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-name"><span class="doc-badge req">snap</span>job context</div>
+          <div class="doc-desc">company, title, JD, tailored result, scorecard, diff, gap</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-name"><span class="doc-badge opt">snap</span>agents</div>
+          <div class="doc-desc">tailoring/scoring provider + model selections</div>
+        </div>
+        <div class="doc-row">
+          <div class="doc-name"><span class="doc-badge opt">snap</span>theme</div>
+          <div class="doc-desc">8 color values + preset name</div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:14px">auto-timestamped · slugified names · JSON on disk</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

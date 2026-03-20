@@ -13,15 +13,16 @@ export function ConfigPanel() {
 
   const { configProviders, tailorProvider, tailorModel, scoreProvider, scoreModel } = state;
 
+  // Server model lists already include "auto" as first entry
   const tailorProviderModels =
-    configProviders.find((p) => p.id === tailorProvider)?.models ?? [];
+    configProviders.find((p) => p.id === tailorProvider)?.models ?? ['auto'];
 
   const scoreProviderModels =
-    configProviders.find((p) => p.id === scoreProvider)?.models ?? [];
+    configProviders.find((p) => p.id === scoreProvider)?.models ?? ['auto'];
 
   function handleTailorProviderChange(value: string) {
     dispatch({ type: 'SET_TAILOR_PROVIDER', provider: value });
-    // If score provider is still 'auto', sync it to the new tailor provider
+    dispatch({ type: 'SET_TAILOR_MODEL', model: 'auto' });
     if (scoreProvider === 'auto') {
       dispatch({ type: 'SET_SCORE_PROVIDER', provider: value });
     }
@@ -33,6 +34,7 @@ export function ConfigPanel() {
 
   function handleScoreProviderChange(value: string) {
     dispatch({ type: 'SET_SCORE_PROVIDER', provider: value });
+    dispatch({ type: 'SET_SCORE_MODEL', model: 'auto' });
   }
 
   function handleScoreModelChange(value: string) {
@@ -72,7 +74,6 @@ export function ConfigPanel() {
                 <SelectValue placeholder="auto" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">auto</SelectItem>
                 {tailorProviderModels.map((model) => (
                   <SelectItem key={model} value={model}>
                     {model}
@@ -111,7 +112,6 @@ export function ConfigPanel() {
                 <SelectValue placeholder="auto" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">auto</SelectItem>
                 {scoreProviderModels.map((model) => (
                   <SelectItem key={model} value={model}>
                     {model}

@@ -4,6 +4,7 @@ import type { ActivePanel } from '../../types';
 import { SourcesPanel } from '../sources/SourcesPanel';
 import { PromptsPanel } from '../prompts/PromptsPanel';
 import { ConfigPanel } from '../config/ConfigPanel';
+import { JobsPanel } from '../jobs/JobsPanel';
 
 const PANEL_CONFIG: Record<
   NonNullable<ActivePanel>,
@@ -46,8 +47,10 @@ export function PanelContainer() {
       </div>
 
       {/* Panel body */}
-      <div className="flex-1 overflow-y-auto">
-        {state.activePanel === 'sources' ? (
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        {state.activePanel === 'jobs' ? (
+          <JobsPanel />
+        ) : state.activePanel === 'sources' ? (
           <SourcesPanel />
         ) : state.activePanel === 'config' ? (
           <div className="p-3">

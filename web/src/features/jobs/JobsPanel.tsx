@@ -6,10 +6,14 @@ import { Button } from '@/components/ui/button';
 import { StageFilter } from './StageFilter';
 import { JobList } from './JobList';
 import { JobDetail } from './JobDetail';
+import { TailorConfirmModal } from './TailorConfirmModal';
+import { PasteJDModal } from './PasteJDModal';
 
 export function JobsPanel() {
   const { dispatch } = useWorkspace();
   const [isLoadingHuntr, setIsLoadingHuntr] = useState(false);
+  const [tailorModalOpen, setTailorModalOpen] = useState(false);
+  const [pasteModalOpen, setPasteModalOpen] = useState(false);
 
   async function handleLoadHuntr() {
     setIsLoadingHuntr(true);
@@ -35,12 +39,8 @@ export function JobsPanel() {
     }
   }
 
-  function handlePasteJd() {
-    console.log('TODO: open paste modal');
-  }
-
-  function handleTailorSelected() {
-    console.log('TODO: open tailor modal');
+  function handleTailorConfirm(jobIds: string[]) {
+    dispatch({ type: 'SET_TAILOR_QUEUE', queue: jobIds });
   }
 
   return (
@@ -59,7 +59,7 @@ export function JobsPanel() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handlePasteJd}
+          onClick={() => setPasteModalOpen(true)}
           className="text-[11px] h-7 px-2"
         >
           Paste JD
@@ -67,7 +67,7 @@ export function JobsPanel() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleTailorSelected}
+          onClick={() => setTailorModalOpen(true)}
           className="text-[11px] h-7 px-2"
         >
           Tailor Selected
@@ -84,6 +84,16 @@ export function JobsPanel() {
 
       {/* Job detail — shrinks to fit its content */}
       <JobDetail />
+
+      <TailorConfirmModal
+        open={tailorModalOpen}
+        onOpenChange={setTailorModalOpen}
+        onConfirm={handleTailorConfirm}
+      />
+      <PasteJDModal
+        open={pasteModalOpen}
+        onOpenChange={setPasteModalOpen}
+      />
     </div>
   );
 }

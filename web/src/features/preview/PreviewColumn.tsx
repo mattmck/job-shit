@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWorkspace } from '../../context';
 import { DiffView } from './DiffView';
-import { parseMarkdownSections, reconstructMarkdown } from '../../lib/markdown';
+import { reconstructEditorData } from '../../lib/markdown';
 import * as api from '../../api/client';
 
 export function PreviewColumn() {
@@ -9,7 +9,10 @@ export function PreviewColumn() {
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
 
   const job = state.activeJobId
     ? state.jobs.find((j) => j.id === state.activeJobId)
@@ -26,13 +29,7 @@ export function PreviewColumn() {
 
     // If there is editorData, reconstruct from the edited sections
     if (job._editorData) {
-      return reconstructMarkdown(
-        job._editorData.sections.map((s) => ({
-          id: s.id,
-          heading: s.heading,
-          content: s.content,
-        }))
-      );
+      return reconstructEditorData(job._editorData);
     }
 
     return rawMarkdown;
@@ -52,6 +49,7 @@ export function PreviewColumn() {
     if (state.viewMode !== 'preview') return;
     if (!activeMarkdown) {
       setPreviewHtml('');
+      setPreviewHeight(null);
       return;
     }
 
@@ -60,7 +58,11 @@ export function PreviewColumn() {
     debounceRef.current = setTimeout(() => {
       setPreviewLoading(true);
       api
-        .renderHtml({ markdown: activeMarkdown })
+        .renderHtml({
+          markdown: activeMarkdown,
+          kind: state.activeDoc === 'resume' ? 'resume' : 'coverLetter',
+          title: job?.title || 'Tailored document',
+        })
         .then((res) => {
           setPreviewHtml(res.html);
         })
@@ -75,13 +77,17 @@ export function PreviewColumn() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [activeMarkdown, state.viewMode]);
+  }, [activeMarkdown, job?.title, state.activeDoc, state.viewMode]);
 
   const handleExportPdf = useCallback(async () => {
     if (!activeMarkdown || exportingPdf) return;
     setExportingPdf(true);
     try {
-      const blob = await api.exportPdf({ markdown: activeMarkdown });
+      const blob = await api.exportPdf({
+        markdown: activeMarkdown,
+        kind: state.activeDoc === 'resume' ? 'resume' : 'coverLetter',
+        title: job?.title || 'Tailored document',
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -107,6 +113,94 @@ export function PreviewColumn() {
     [dispatch]
   );
 
+  const syncPreviewHeight = useCallback(() => {
+    const iframe = previewFrameRef.current;
+    const doc = iframe?.contentDocument;
+    if (!iframe || !doc) return;
+
+    const contentRoot = doc.body.firstElementChild as HTMLElement | null;
+    const nextHeight = Math.ceil(Math.max(
+      contentRoot?.scrollHeight ?? 0,
+      contentRoot?.offsetHeight ?? 0,
+      contentRoot?.getBoundingClientRect().height ?? 0,
+      doc.body?.firstElementChild ? 0 : doc.body?.scrollHeight ?? 0,
+    )) + 4;
+
+    if (nextHeight > 0) {
+      setPreviewHeight((currentHeight) => (
+        currentHeight === nextHeight ? currentHeight : nextHeight
+      ));
+    }
+  }, []);
+
+  const configurePreviewDocument = useCallback(() => {
+    const doc = previewFrameRef.current?.contentDocument;
+    if (!doc) return;
+
+    doc.documentElement.style.overflow = 'hidden';
+    doc.body.style.overflow = 'hidden';
+  }, []);
+
+  const handlePreviewLoad = useCallback(() => {
+    configurePreviewDocument();
+    syncPreviewHeight();
+    window.setTimeout(syncPreviewHeight, 120);
+    window.setTimeout(syncPreviewHeight, 360);
+  }, [configurePreviewDocument, syncPreviewHeight]);
+
+  useEffect(() => {
+    if (state.viewMode !== 'preview' || !previewHtml) return;
+
+    const disposers: Array<() => void> = [];
+    const scheduleSync = () => {
+      window.requestAnimationFrame(syncPreviewHeight);
+    };
+
+    const iframe = previewFrameRef.current;
+    if (!iframe) return;
+
+    const connectObservers = () => {
+      configurePreviewDocument();
+      scheduleSync();
+
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      const contentRoot = doc.body.firstElementChild as HTMLElement | null;
+
+      if (previewScrollRef.current && 'ResizeObserver' in window) {
+        const containerObserver = new ResizeObserver(scheduleSync);
+        containerObserver.observe(previewScrollRef.current);
+        disposers.push(() => containerObserver.disconnect());
+      }
+
+      if (contentRoot && 'ResizeObserver' in window) {
+        const contentObserver = new ResizeObserver(scheduleSync);
+        contentObserver.observe(contentRoot);
+        disposers.push(() => contentObserver.disconnect());
+      }
+
+      const previewWindow = iframe.contentWindow;
+      if (previewWindow) {
+        previewWindow.addEventListener('resize', scheduleSync);
+        disposers.push(() => previewWindow.removeEventListener('resize', scheduleSync));
+      }
+
+      if (doc.fonts?.ready) {
+        void doc.fonts.ready.then(scheduleSync).catch(() => undefined);
+      }
+    };
+
+    connectObservers();
+    window.addEventListener('resize', scheduleSync);
+    disposers.push(() => window.removeEventListener('resize', scheduleSync));
+
+    return () => {
+      for (const dispose of disposers) {
+        dispose();
+      }
+    };
+  }, [configurePreviewDocument, previewHtml, state.viewMode, syncPreviewHeight]);
+
   // Empty / no-result states
   if (!job) {
     return (
@@ -125,7 +219,7 @@ export function PreviewColumn() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div className="flex-1 h-full min-h-0 flex flex-col min-w-0 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
         {/* Preview / Diff toggle */}
@@ -184,19 +278,31 @@ export function PreviewColumn() {
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-hidden min-h-0">
+      <div className="flex-1 overflow-hidden min-h-0 min-w-0">
         {state.viewMode === 'preview' ? (
           previewLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               Rendering preview…
             </div>
           ) : previewHtml ? (
-            <iframe
-              srcDoc={previewHtml}
-              className="w-full h-full border-none"
-              title="Document preview"
-              sandbox="allow-same-origin"
-            />
+            <div
+              ref={previewScrollRef}
+              className="h-full min-h-0 overflow-auto bg-muted/20 p-3 min-w-0"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <iframe
+                ref={previewFrameRef}
+                onLoad={handlePreviewLoad}
+                srcDoc={previewHtml}
+                scrolling="no"
+                className="block w-full rounded-lg border border-border bg-white shadow-sm"
+                style={{
+                  height: previewHeight ? `${previewHeight}px` : '100%',
+                  pointerEvents: 'none',
+                }}
+                title="Document preview"
+              />
+            </div>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               No content to preview

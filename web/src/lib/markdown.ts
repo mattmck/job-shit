@@ -1,6 +1,8 @@
+import type { ActiveDoc, EditorData, EditorSection } from '@/types';
+
 // ---------------------------------------------------------------------------
 // Markdown parsing utilities
-// Ported from src/workbench/index-v2.html
+// Ported from src/workbench/index-v2.html and docs/resume-editor.html
 // ---------------------------------------------------------------------------
 
 export interface MarkdownSection {
@@ -66,7 +68,6 @@ export function parseMarkdownSections(markdown: string): MarkdownSection[] {
 
   function flush() {
     if (currentHeading || currentLines.length > 0) {
-      // Trim trailing blank lines from content
       while (currentLines.length > 0 && currentLines[currentLines.length - 1].trim() === '') {
         currentLines.pop();
       }
@@ -83,7 +84,6 @@ export function parseMarkdownSections(markdown: string): MarkdownSection[] {
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith('#')) {
-      // It's a heading line — flush previous section and start a new one
       flush();
       currentHeading = line;
     } else {
@@ -95,15 +95,147 @@ export function parseMarkdownSections(markdown: string): MarkdownSection[] {
   return sections;
 }
 
+function toEditorSections(sections: MarkdownSection[], previousSections: EditorSection[] = []): EditorSection[] {
+  return sections.map((section) => {
+    const previous = previousSections.find((entry) => entry.id === section.id);
+    return {
+      id: section.id,
+      heading: section.heading,
+      content: section.content,
+      accepted: previous?.accepted ?? false,
+    };
+  });
+}
+
+function parseResumeEditorData(markdown: string, previous?: EditorData | null): EditorData {
+  const lines = markdown.split('\n');
+  const contentLines: string[] = [];
+  let h2Count = 0;
+  let name = '';
+  let role = '';
+  let contact = '';
+  let links = '';
+  let seenPrimaryHeading = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+      if (!name) {
+        name = trimmed.slice(2).trim();
+        seenPrimaryHeading = true;
+        continue;
+      }
+    }
+
+    if (trimmed.startsWith('## ') && !trimmed.startsWith('### ')) {
+      h2Count += 1;
+      if (h2Count === 1) {
+        role = trimmed.slice(3).trim();
+        continue;
+      }
+    }
+
+    if (h2Count <= 1 && seenPrimaryHeading) {
+      if (trimmed && name && trimmed === name) {
+        continue;
+      }
+      if (trimmed && !contact) {
+        contact = trimmed;
+        continue;
+      }
+      if (trimmed && !links) {
+        links = trimmed;
+        continue;
+      }
+      if (!trimmed) {
+        continue;
+      }
+    }
+
+    if (!seenPrimaryHeading) {
+      continue;
+    }
+
+    contentLines.push(line);
+  }
+
+  const previousSections = previous?.sections ?? [];
+
+  return {
+    kind: 'resume',
+    header: {
+      name,
+      role,
+      contact,
+      links,
+    },
+    sections: toEditorSections(parseMarkdownSections(contentLines.join('\n')), previousSections),
+  };
+}
+
+export function parseEditorData(
+  markdown: string,
+  doc: ActiveDoc,
+  previous?: EditorData | null,
+): EditorData {
+  if (doc === 'resume') {
+    return parseResumeEditorData(markdown, previous);
+  }
+
+  return {
+    kind: 'generic',
+    sections: toEditorSections(parseMarkdownSections(markdown), previous?.sections ?? []),
+  };
+}
+
 /**
  * Reconstruct full markdown from sections by joining heading + content.
  */
-export function reconstructMarkdown(sections: MarkdownSection[]): string {
+export function reconstructMarkdown(sections: Array<Pick<MarkdownSection, 'heading' | 'content'>>): string {
   return sections
-    .map((s) => {
-      if (s.heading && s.content) return `${s.heading}\n${s.content}`;
-      if (s.heading) return s.heading;
-      return s.content;
+    .map((section) => {
+      if (section.heading && section.content) return `${section.heading}\n${section.content}`;
+      if (section.heading) return section.heading;
+      return section.content;
     })
     .join('\n\n');
+}
+
+export function reconstructEditorData(editorData: EditorData): string {
+  if (editorData.kind !== 'resume') {
+    return reconstructMarkdown(editorData.sections);
+  }
+
+  const lines: string[] = [];
+  const header = editorData.header ?? { name: '', role: '', contact: '', links: '' };
+
+  if (header.name.trim()) {
+    lines.push(`# ${header.name.trim()}`);
+    lines.push('');
+  }
+
+  if (header.role.trim()) {
+    lines.push(`## ${header.role.trim()}`);
+    lines.push('');
+  }
+
+  if (header.contact.trim()) {
+    lines.push(header.contact.trim());
+  }
+
+  if (header.links.trim()) {
+    lines.push(header.links.trim());
+  }
+
+  if ((header.contact.trim() || header.links.trim()) && editorData.sections.length > 0) {
+    lines.push('');
+  }
+
+  const sectionMarkdown = reconstructMarkdown(editorData.sections).trim();
+  if (sectionMarkdown) {
+    lines.push(sectionMarkdown);
+  }
+
+  return lines.join('\n').trimEnd();
 }

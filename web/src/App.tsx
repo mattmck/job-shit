@@ -9,7 +9,41 @@ import { ScoreCards } from './features/scores/ScoreCards';
 import { EditorColumn } from './features/editor/EditorColumn';
 import { PreviewColumn } from './features/preview/PreviewColumn';
 import { MissingKeywords } from './features/editor/MissingKeywords';
+import { useTailorQueue } from './hooks/useTailorQueue';
 import * as api from './api/client';
+
+function AppShell() {
+  useTailorQueue();
+
+  return (
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
+      <TopBar />
+      <div className="flex flex-1 min-h-0">
+        <IconRail />
+        <PanelContainer />
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <ScoreCards />
+          <div className="flex-1 min-h-0 flex overflow-hidden">
+            <PanelGroup direction="horizontal" className="flex-1 overflow-hidden min-h-0">
+              <Panel defaultSize={50} minSize={30} className="min-h-0 min-w-0 flex">
+                <div className="h-full min-h-0 flex">
+                  <EditorColumn />
+                </div>
+              </Panel>
+              <PanelResizeHandle className="w-1 bg-border hover:bg-primary/30 transition-colors" />
+              <Panel defaultSize={50} minSize={30} className="min-h-0 min-w-0 flex">
+                <div className="h-full min-h-0 flex">
+                  <PreviewColumn />
+                </div>
+              </Panel>
+            </PanelGroup>
+            <MissingKeywords />
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -21,7 +55,11 @@ export default function App() {
         name: p.label,
         models: p.models,
       }));
-      dispatch({ type: 'SET_CONFIG_PROVIDERS', providers });
+      dispatch({
+        type: 'INITIALIZE_CONFIG',
+        providers,
+        defaults: cfg.defaults,
+      });
     }).catch(console.error);
 
     api.getLocalWorkspace().then((ws) => {
@@ -30,6 +68,7 @@ export default function App() {
       dispatch({ type: 'SET_SOURCE', field: 'sourceBio', value: docs.bio || '' });
       dispatch({ type: 'SET_SOURCE', field: 'sourceCoverLetter', value: docs.baseCoverLetter || '' });
       dispatch({ type: 'SET_SOURCE', field: 'sourceSupplemental', value: docs.resumeSupplemental || '' });
+      dispatch({ type: 'SET_SOURCE_PATHS', paths: ws.paths || {} });
       dispatch({ type: 'SET_PROMPT_SOURCES', sources: ws.prompts || {} });
     }).catch(console.error);
 
@@ -40,26 +79,7 @@ export default function App() {
 
   return (
     <WorkspaceContext.Provider value={{ state, dispatch }}>
-      <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
-        <TopBar />
-        <div className="flex flex-1 min-h-0">
-          <IconRail />
-          <PanelContainer />
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <ScoreCards />
-            <PanelGroup direction="horizontal" className="flex-1 overflow-hidden min-h-0">
-              <Panel defaultSize={50} minSize={30}>
-                <EditorColumn />
-              </Panel>
-              <PanelResizeHandle className="w-1 bg-border hover:bg-primary/30 transition-colors" />
-              <Panel defaultSize={50} minSize={30}>
-                <PreviewColumn />
-              </Panel>
-            </PanelGroup>
-            <MissingKeywords />
-          </main>
-        </div>
-      </div>
+      <AppShell />
     </WorkspaceContext.Provider>
   );
 }

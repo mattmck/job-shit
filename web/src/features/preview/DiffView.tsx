@@ -49,6 +49,33 @@ export function DiffView({ original, modified }: DiffViewProps) {
   return (
     <div className="h-full overflow-auto p-4">
       <style>{`
+        .diff-view {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size: 12px;
+          line-height: 1.6;
+        }
+        .diff-line {
+          display: grid;
+          grid-template-columns: 1rem minmax(0, 1fr);
+          gap: 0.5rem;
+          padding: 0.125rem 0.5rem;
+          border-radius: 0.375rem;
+          white-space: pre-wrap;
+        }
+        .diff-line__prefix {
+          opacity: 0.8;
+        }
+        .diff-line--added {
+          background-color: #dcfce7;
+          color: #166534;
+        }
+        .diff-line--removed {
+          background-color: #fee2e2;
+          color: #991b1b;
+        }
+        .diff-line--unchanged {
+          color: #6b7280;
+        }
         .diff-view ins {
           background-color: #bbf7d0;
           color: #14532d;

@@ -8,17 +8,39 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
+function formatProviderName(providerId: string): string {
+  if (providerId === 'azure') return 'Azure OpenAI';
+  if (providerId === 'openai') return 'OpenAI';
+  return providerId.replace(/[-_]+/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 export function ConfigPanel() {
   const { state, dispatch } = useWorkspace();
 
   const { configProviders, tailorProvider, tailorModel, scoreProvider, scoreModel } = state;
+  const savedOnlyProviders = [tailorProvider, scoreProvider]
+    .filter((provider) => provider !== 'auto')
+    .filter((provider, index, items) => items.indexOf(provider) === index)
+    .filter((provider) => !configProviders.some((entry) => entry.id === provider))
+    .map((provider) => ({
+      id: provider,
+      name: `${formatProviderName(provider)} (saved)`,
+      models: ['auto'],
+    }));
+  const providerOptions = [...configProviders, ...savedOnlyProviders];
 
   // Server model lists already include "auto" as first entry
   const tailorProviderModels =
-    configProviders.find((p) => p.id === tailorProvider)?.models ?? ['auto'];
+    Array.from(new Set([
+      ...(providerOptions.find((p) => p.id === tailorProvider)?.models ?? ['auto']),
+      tailorModel,
+    ].filter(Boolean)));
 
   const scoreProviderModels =
-    configProviders.find((p) => p.id === scoreProvider)?.models ?? ['auto'];
+    Array.from(new Set([
+      ...(providerOptions.find((p) => p.id === scoreProvider)?.models ?? ['auto']),
+      scoreModel,
+    ].filter(Boolean)));
 
   function handleTailorProviderChange(value: string) {
     dispatch({ type: 'SET_TAILOR_PROVIDER', provider: value });
@@ -59,7 +81,7 @@ export function ConfigPanel() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">auto</SelectItem>
-                {configProviders.map((provider) => (
+                {providerOptions.map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.name}
                   </SelectItem>
@@ -97,7 +119,7 @@ export function ConfigPanel() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">auto</SelectItem>
-                {configProviders.map((provider) => (
+                {providerOptions.map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.name}
                   </SelectItem>

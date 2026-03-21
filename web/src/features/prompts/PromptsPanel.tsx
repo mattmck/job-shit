@@ -44,7 +44,7 @@ export function PromptsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex-1 overflow-y-auto px-3 py-3">
       {PROMPT_FIELDS.map((field) => (
         <div key={field.key} style={{ marginBottom: '16px' }}>
           {/* Label */}

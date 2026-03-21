@@ -25,7 +25,7 @@ export function PasteJDModal({ open, onOpenChange }: PasteJDModalProps) {
       company: company.trim(),
       title: title.trim(),
       jd: jd.trim(),
-      stage: 'Manual',
+      stage: 'manual',
       status: 'loaded' as const,
       checked: false,
       result: null,

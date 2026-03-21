@@ -83,7 +83,7 @@ function SourceItemRow({
       </div>
 
       {/* File path */}
-      <div className="font-mono text-[11px] text-muted-foreground mb-1 truncate">
+      <div className="font-mono text-[11px] text-muted-foreground mb-1 break-all leading-snug">
         {filePath || (value ? '(edited in place)' : 'Not loaded')}
       </div>
 

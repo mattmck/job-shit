@@ -2,8 +2,9 @@ import { useCallback } from 'react';
 import { useWorkspace } from '../../context';
 import { ScrollArea } from '../../components/ui/scroll-area';
 import { EditorSection } from './EditorSection';
-import { parseMarkdownSections, reconstructMarkdown } from '../../lib/markdown';
-import type { EditorData, EditorSection as EditorSectionType } from '../../types';
+import { Input } from '@/components/ui/input';
+import { parseEditorData, reconstructEditorData } from '../../lib/markdown';
+import type { EditorData } from '../../types';
 import * as api from '../../api/client';
 
 export function EditorColumn() {
@@ -26,15 +27,7 @@ export function EditorColumn() {
     if (!job || !activeMarkdown) return null;
     if (job._editorData) return job._editorData;
 
-    // Build fresh EditorData from parsed sections
-    const parsed = parseMarkdownSections(activeMarkdown);
-    const sections: EditorSectionType[] = parsed.map((s) => ({
-      id: s.id,
-      heading: s.heading,
-      content: s.content,
-      accepted: false,
-    }));
-    const newData: EditorData = { sections };
+    const newData = parseEditorData(activeMarkdown, state.activeDoc, job._editorData);
 
     // Persist it into state (deferred to avoid dispatch-during-render)
     setTimeout(() => {
@@ -45,11 +38,7 @@ export function EditorColumn() {
   })();
 
   // Reconstruct the full markdown from editorData sections
-  const fullMarkdown = editorData
-    ? reconstructMarkdown(
-        editorData.sections.map((s) => ({ id: s.id, heading: s.heading, content: s.content }))
-      )
-    : (activeMarkdown ?? '');
+  const fullMarkdown = editorData ? reconstructEditorData(editorData) : (activeMarkdown ?? '');
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(fullMarkdown).catch(console.error);
@@ -65,6 +54,31 @@ export function EditorColumn() {
         type: 'UPDATE_JOB',
         id: job.id,
         patch: { _editorData: { ...editorData, sections } },
+      });
+      dispatch({ type: 'SET_SCORES_STALE', stale: true });
+    },
+    [job, editorData, dispatch]
+  );
+
+  const handleHeaderChange = useCallback(
+    (field: 'name' | 'role' | 'contact' | 'links', value: string) => {
+      if (!job || !editorData || editorData.kind !== 'resume') return;
+      const nextHeader = {
+        name: editorData.header?.name ?? '',
+        role: editorData.header?.role ?? '',
+        contact: editorData.header?.contact ?? '',
+        links: editorData.header?.links ?? '',
+        [field]: value,
+      };
+      dispatch({
+        type: 'UPDATE_JOB',
+        id: job.id,
+        patch: {
+          _editorData: {
+            ...editorData,
+            header: nextHeader,
+          },
+        },
       });
       dispatch({ type: 'SET_SCORES_STALE', stale: true });
     },
@@ -95,29 +109,20 @@ export function EditorColumn() {
       dispatch({ type: 'SET_REGENERATING_SECTION', section: sectionId });
 
       try {
-        const sectionText = section.heading
-          ? `${section.heading}\n${section.content}`
-          : section.content;
-
         const res = await api.regenerateSection({
-          section: sectionText,
           sectionId,
           fullResume: fullMarkdown,
           jd: job.jd,
+          bio: state.sourceBio,
+          jobTitle: job.title,
           provider: state.tailorProvider !== 'auto' ? state.tailorProvider : undefined,
           model: state.tailorModel !== 'auto' ? state.tailorModel : undefined,
         });
 
-        // Parse the returned section text back into heading + content
-        const lines = res.section.split('\n');
-        let newHeading = section.heading;
-        let newContent = section.content;
-        if (lines[0]?.trimStart().startsWith('#')) {
-          newHeading = lines[0];
-          newContent = lines.slice(1).join('\n').replace(/^\n+/, '');
-        } else {
-          newContent = res.section;
-        }
+        const newHeading = res.section.headingLevel > 0 && res.section.heading
+          ? `${'#'.repeat(res.section.headingLevel)} ${res.section.heading}`
+          : section.heading;
+        const newContent = res.section.content;
 
         const sections = editorData.sections.map((s) =>
           s.id === sectionId
@@ -136,7 +141,7 @@ export function EditorColumn() {
         dispatch({ type: 'SET_REGENERATING_SECTION', section: null });
       }
     },
-    [job, editorData, activeMarkdown, fullMarkdown, state.tailorProvider, state.tailorModel, dispatch]
+    [job, editorData, activeMarkdown, fullMarkdown, state.sourceBio, state.tailorProvider, state.tailorModel, dispatch]
   );
 
   const handleDocTab = useCallback(
@@ -168,7 +173,7 @@ export function EditorColumn() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+    <div className="flex-1 h-full min-h-0 flex flex-col min-w-0 border-r border-border">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
         {/* Doc tabs */}
@@ -225,7 +230,62 @@ export function EditorColumn() {
       </div>
 
       {/* Section list */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0 min-w-0">
+        {editorData?.kind === 'resume' && (
+          <div className="border-b border-border px-3 py-3 space-y-3">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Resume Header
+              </p>
+              <p className="text-xs text-muted-foreground">
+                These top lines stay separate from the section editor, like the earlier workbench.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Name</label>
+                <Input
+                  value={editorData.header?.name ?? ''}
+                  onChange={(event) => handleHeaderChange('name', event.target.value)}
+                  className="h-9"
+                  placeholder="Your name"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Role</label>
+                <Input
+                  value={editorData.header?.role ?? ''}
+                  onChange={(event) => handleHeaderChange('role', event.target.value)}
+                  className="h-9"
+                  placeholder="Role headline"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Contact Line</label>
+                <Input
+                  value={editorData.header?.contact ?? ''}
+                  onChange={(event) => handleHeaderChange('contact', event.target.value)}
+                  className="h-9 font-mono text-xs"
+                  placeholder="email | phone | location"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Links Line</label>
+                <Input
+                  value={editorData.header?.links ?? ''}
+                  onChange={(event) => handleHeaderChange('links', event.target.value)}
+                  className="h-9 font-mono text-xs"
+                  placeholder="github.com/example | linkedin.com/in/example"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {editorData && editorData.sections.length > 0 ? (
           editorData.sections.map((section) => (
             <EditorSection
@@ -238,11 +298,11 @@ export function EditorColumn() {
               onRegenerate={() => handleRegenerate(section.id)}
             />
           ))
-        ) : (
+        ) : editorData ? (
           <div className="flex items-center justify-center p-8 text-muted-foreground text-sm">
-            No sections found
+            {editorData.kind === 'resume' ? 'No resume sections found below the header.' : 'No sections found'}
           </div>
-        )}
+        ) : null}
       </ScrollArea>
     </div>
   );

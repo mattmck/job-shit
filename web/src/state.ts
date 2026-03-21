@@ -33,6 +33,7 @@ export const initialState: WorkspaceState = {
   sourcePaths: {},
   promptSources: {},
   tailorQueue: [],
+  tailorQueueTotal: 0,
   tailorRunning: null,
   tailorRunningStartedAt: 0,
   tailorLastSummary: null,
@@ -53,12 +54,23 @@ export type Action =
   | { type: 'SET_JOBS'; jobs: Job[] }
   | { type: 'SET_ACTIVE_JOB'; id: string | null }
   | { type: 'UPDATE_JOB'; id: string; patch: Partial<Job> }
+  | { type: 'MERGE_JOB_STAGES'; stages: Record<string, string> }
   | { type: 'SET_JOB_FILTER'; filter: JobListFilter }
   | { type: 'SET_LOADING_HUNTR'; loading: boolean }
   | { type: 'SET_WORKSPACE_NAME'; name: string }
   | { type: 'SET_SAVED_WORKSPACES'; workspaces: { id: string; name: string }[] }
   | { type: 'SET_ACTIVE_WORKSPACE'; id: string | null }
   | { type: 'SET_CONFIG_PROVIDERS'; providers: { id: string; name: string; models: string[] }[] }
+  | {
+      type: 'INITIALIZE_CONFIG';
+      providers: { id: string; name: string; models: string[] }[];
+      defaults: {
+        tailoringProvider: string;
+        tailoringModel: string;
+        scoringProvider: string;
+        scoringModel: string;
+      };
+    }
   | { type: 'SET_TAILOR_PROVIDER'; provider: string }
   | { type: 'SET_TAILOR_MODEL'; model: string }
   | { type: 'SET_SCORE_PROVIDER'; provider: string }
@@ -66,7 +78,7 @@ export type Action =
   | { type: 'SET_SOURCE'; field: 'sourceResume' | 'sourceBio' | 'sourceCoverLetter' | 'sourceSupplemental'; value: string }
   | { type: 'SET_SOURCE_PATHS'; paths: SourcePaths }
   | { type: 'SET_PROMPT_SOURCES'; sources: PromptSources }
-  | { type: 'SET_TAILOR_QUEUE'; queue: string[] }
+  | { type: 'SET_TAILOR_QUEUE'; queue: string[]; total?: number }
   | { type: 'SET_TAILOR_RUNNING'; id: string | null; startedAt?: number }
   | { type: 'SET_TAILOR_SUMMARY'; summary: { tailored: number; failed: number } | null }
   | { type: 'SET_SCORES_STALE'; stale: boolean }
@@ -98,6 +110,16 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
         ),
       };
 
+    case 'MERGE_JOB_STAGES':
+      return {
+        ...state,
+        jobs: state.jobs.map((job) =>
+          action.stages[job.id]
+            ? { ...job, stage: action.stages[job.id] }
+            : job
+        ),
+      };
+
     case 'SET_JOB_FILTER':
       return { ...state, jobListFilter: action.filter };
 
@@ -115,6 +137,28 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
 
     case 'SET_CONFIG_PROVIDERS':
       return { ...state, configProviders: action.providers };
+
+    case 'INITIALIZE_CONFIG':
+      return {
+        ...state,
+        configProviders: action.providers,
+        tailorProvider:
+          state.tailorProvider === 'auto'
+            ? action.defaults.tailoringProvider || 'auto'
+            : state.tailorProvider,
+        tailorModel:
+          state.tailorModel === 'auto'
+            ? action.defaults.tailoringModel || 'auto'
+            : state.tailorModel,
+        scoreProvider:
+          state.scoreProvider === 'auto'
+            ? action.defaults.scoringProvider || 'auto'
+            : state.scoreProvider,
+        scoreModel:
+          state.scoreModel === 'auto'
+            ? action.defaults.scoringModel || 'auto'
+            : state.scoreModel,
+      };
 
     case 'SET_TAILOR_PROVIDER':
       return { ...state, tailorProvider: action.provider };
@@ -138,13 +182,21 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, promptSources: action.sources };
 
     case 'SET_TAILOR_QUEUE':
-      return { ...state, tailorQueue: action.queue };
+      return {
+        ...state,
+        tailorQueue: action.queue,
+        tailorQueueTotal:
+          action.queue.length === 0
+            ? 0
+            : action.total ?? state.tailorQueueTotal,
+      };
 
     case 'SET_TAILOR_RUNNING':
       return {
         ...state,
         tailorRunning: action.id,
-        tailorRunningStartedAt: action.startedAt ?? (action.id != null ? Date.now() : state.tailorRunningStartedAt),
+        tailorRunningStartedAt:
+          action.id == null ? 0 : action.startedAt ?? Date.now(),
       };
 
     case 'SET_TAILOR_SUMMARY':
@@ -172,7 +224,26 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       return { ...state, runFeedback: action.feedback };
 
     case 'LOAD_WORKSPACE':
-      return { ...state, ...action.state };
+      return {
+        ...state,
+        ...action.state,
+        tailorProvider:
+          action.state.tailorProvider && action.state.tailorProvider !== 'auto'
+            ? action.state.tailorProvider
+            : state.tailorProvider,
+        tailorModel:
+          action.state.tailorModel && action.state.tailorModel !== 'auto'
+            ? action.state.tailorModel
+            : state.tailorModel,
+        scoreProvider:
+          action.state.scoreProvider && action.state.scoreProvider !== 'auto'
+            ? action.state.scoreProvider
+            : state.scoreProvider,
+        scoreModel:
+          action.state.scoreModel && action.state.scoreModel !== 'auto'
+            ? action.state.scoreModel
+            : state.scoreModel,
+      };
 
     default: {
       const _exhaustive: never = action;

@@ -25,6 +25,7 @@ import { DEFAULT_RESUME_THEME, renderCoverLetterHtml, renderPdf, renderResumeHtm
 import {
   buildTailorInputFromHuntrJob,
   getJob,
+  listAllJobStages,
   listAllJobs,
   listWishlistJobs,
   requireHuntrClient,
@@ -33,7 +34,7 @@ import { runTailorWorkflow } from './services/runs.js';
 import { analyzeGap, analyzeGapWithAI } from './services/gap.js';
 import { regenerateResumeSection } from './services/review.js';
 import { scoreTailoredOutput } from './services/scoring.js';
-import { listSavedWorkspaces, loadSavedWorkspace, saveWorkspaceSnapshot } from './services/workspace-store.js';
+import { deleteSavedWorkspace, listSavedWorkspaces, loadSavedWorkspace, saveWorkspaceSnapshot } from './services/workspace-store.js';
 import { resolveWorkspaceDocuments } from './services/workspace.js';
 import {
   AgentSelection,
@@ -444,6 +445,19 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
     return;
   }
 
+  if (method === 'DELETE' && url.pathname.startsWith('/api/workspaces/')) {
+    const id = decodeURIComponent(url.pathname.slice('/api/workspaces/'.length));
+    try {
+      deleteSavedWorkspace(id);
+      sendJson(res, 200, { ok: true, id });
+    } catch (error) {
+      const message = (error as Error).message || 'Workspace error';
+      const lowerMessage = message.toLowerCase();
+      sendJson(res, lowerMessage.includes('not found') ? 404 : 400, { error: message });
+    }
+    return;
+  }
+
   if (method === 'GET' && url.pathname === '/api/huntr/jobs') {
     const client = await requireHuntrClient();
     const stageParam = url.searchParams.get('stage');
@@ -463,6 +477,19 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
         url: entry.job.url ?? '',
         listName: entry.listName ?? '',
         descriptionText: entry.descriptionText,
+      })),
+    });
+    return;
+  }
+
+  if (method === 'GET' && url.pathname === '/api/huntr/job-stages') {
+    const client = await requireHuntrClient();
+    const jobs = await listAllJobStages(client, url.searchParams.get('board') ?? undefined);
+    sendJson(res, 200, {
+      jobs: jobs.map((entry) => ({
+        boardId: entry.boardId,
+        id: entry.id,
+        listName: entry.listName ?? '',
       })),
     });
     return;

@@ -33,6 +33,8 @@ export function ScoreDetailsModal() {
   const isOpen = state.activeScoreDetailsId !== null;
   const activeJob = state.jobs.find((j) => j.id === state.activeJobId);
   const scorecard = activeJob?.result?.scorecard;
+  const activeDocument = scorecard?.documents.find((document) => document.id === state.activeScoreDetailsId)
+    ?? scorecard?.documents[0];
 
   function onOpenChange(open: boolean) {
     if (!open) {
@@ -42,7 +44,14 @@ export function ScoreDetailsModal() {
 
   if (!scorecard) return null;
 
-  const overallColors = getScoreColors(scorecard.overall);
+  const overallColors = getScoreColors(activeDocument?.overall ?? scorecard.overall);
+  const detailTitle = activeDocument?.label ?? 'Score Details';
+  const detailSummary = activeDocument?.summary ?? scorecard.summary;
+  const detailVerdict = activeDocument?.verdict ?? scorecard.verdict;
+  const detailConfidence = activeDocument?.confidence ?? scorecard.confidence;
+  const detailCategories = activeDocument?.categories.length ? activeDocument.categories : scorecard.categories;
+  const detailNotes = activeDocument?.notes.length ? activeDocument.notes : scorecard.notes;
+  const detailIssues = activeDocument?.blockingIssues.length ? activeDocument.blockingIssues : scorecard.blockingIssues;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -52,7 +61,7 @@ export function ScoreDetailsModal() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-base font-semibold">
-                Score Details
+                {detailTitle}
               </DialogTitle>
               <DialogDescription className="mt-0.5">
                 {activeJob?.company} — {activeJob?.title}
@@ -60,7 +69,7 @@ export function ScoreDetailsModal() {
             </div>
             <div className="text-right shrink-0">
               <p className={cn('text-4xl font-bold leading-none', overallColors.text)}>
-                {scorecard.overall}
+                {activeDocument?.overall ?? scorecard.overall}
               </p>
               <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">
                 Overall
@@ -75,26 +84,59 @@ export function ScoreDetailsModal() {
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-semibold">Overall Assessment</h3>
-              {scorecard.verdict && (
+              {detailVerdict && (
                 <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-foreground/80">
-                  {scorecard.verdict}
+                  {detailVerdict}
                 </span>
               )}
               <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {scorecard.confidence}% confidence
+                {detailConfidence}% confidence
               </span>
             </div>
-            <MiniBar score={scorecard.overall} />
+            <MiniBar score={activeDocument?.overall ?? scorecard.overall} />
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {scorecard.summary}
+              {detailSummary}
             </p>
           </div>
 
+          {detailNotes.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Notes</h3>
+              <ul className="space-y-2">
+                {detailNotes.map((note, index) => (
+                  <li
+                    key={`${detailTitle}-note-${index}`}
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground leading-relaxed"
+                  >
+                    {note}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {detailIssues.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Blocking Issues</h3>
+              <ul className="space-y-2">
+                {detailIssues.map((issue, index) => (
+                  <li
+                    key={`${detailTitle}-issue-${index}`}
+                    className="flex items-start gap-2 rounded-md bg-red-500/8 px-3 py-2 text-sm text-red-700 dark:text-red-400"
+                  >
+                    <span className="mt-0.5 shrink-0 text-red-500">•</span>
+                    {issue}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Category breakdown */}
-          {scorecard.categories.length > 0 && (
+          {detailCategories.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">Category Breakdown</h3>
-              {scorecard.categories.map((cat, i) => {
+              {detailCategories.map((cat, i) => {
                 const catColors = getScoreColors(cat.score);
                 return (
                   <div key={i} className="space-y-2 rounded-lg border border-border p-3.5">

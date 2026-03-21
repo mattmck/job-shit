@@ -18,44 +18,51 @@ export function MissingKeywords() {
   const total = matched.length + missing.length;
 
   return (
-    <div className="border-t border-border bg-card px-3 py-2 flex items-center gap-3 shrink-0">
-      <span className={`text-xs font-semibold whitespace-nowrap ${fitRatingColor(fitRating)}`}>
-        {fitRating}
-      </span>
-      <div className="flex-1 overflow-x-auto">
-        <div className="flex items-center gap-1.5 w-max">
-          {matched.map((kw) => (
-            <Badge
-              key={`matched-${kw}`}
-              variant="outline"
-              className="bg-green-100 text-green-800 border-green-200 rounded-full text-xs"
-            >
-              {kw}
-            </Badge>
-          ))}
-          {partial.map((kw) => (
-            <Badge
-              key={`partial-${kw}`}
-              variant="outline"
-              className="bg-yellow-100 text-yellow-800 border-yellow-200 rounded-full text-xs"
-            >
-              {kw}
-            </Badge>
-          ))}
-          {missing.map((kw) => (
-            <Badge
-              key={`missing-${kw}`}
-              variant="outline"
-              className="bg-red-100 text-red-800 border-red-200 rounded-full text-xs"
-            >
-              {kw}
-            </Badge>
-          ))}
-        </div>
+    <aside className="w-40 shrink-0 border-l border-border bg-card/70 px-3 py-3 flex flex-col min-h-0">
+      <div className="shrink-0 space-y-1 pb-3 border-b border-border">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Keyword Fit
+        </p>
+        <p className={`text-sm font-semibold ${fitRatingColor(fitRating)}`}>
+          {fitRating}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {matched.length}/{total} matched
+        </p>
       </div>
-      <span className="text-xs text-muted-foreground whitespace-nowrap">
-        {matched.length}/{total} matched
-      </span>
-    </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto pt-3 space-y-1.5">
+        {matched.map((kw) => (
+          <Badge
+            key={`matched-${kw}`}
+            variant="outline"
+            className="w-full justify-start bg-green-100 text-green-800 border-green-200 rounded-full text-xs"
+          >
+            {kw}
+          </Badge>
+        ))}
+        {partial.map((kw) => (
+          <Badge
+            key={`partial-${kw}`}
+            variant="outline"
+            className="w-full justify-start bg-yellow-100 text-yellow-800 border-yellow-200 rounded-full text-xs"
+          >
+            {kw}
+          </Badge>
+        ))}
+        {missing.map((kw) => (
+          <Badge
+            key={`missing-${kw}`}
+            variant="outline"
+            className="w-full justify-start bg-red-100 text-red-800 border-red-200 rounded-full text-xs"
+          >
+            {kw}
+          </Badge>
+        ))}
+        {matched.length === 0 && partial.length === 0 && missing.length === 0 && (
+          <p className="text-xs text-muted-foreground">No keyword analysis yet.</p>
+        )}
+      </div>
+    </aside>
   );
 }

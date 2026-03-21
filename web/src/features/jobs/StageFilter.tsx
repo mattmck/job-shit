@@ -1,28 +1,26 @@
 import { useWorkspace } from '../../context';
 import type { JobListFilter } from '../../types';
 import { cn } from '@/components/ui/utils';
+import { formatStageLabel, getStageFilterValues, matchesJobFilter, normalizeStage } from './stages';
 
 interface FilterPill {
   value: JobListFilter;
   label: string;
 }
 
-const FILTER_PILLS: FilterPill[] = [
-  { value: 'all', label: 'All' },
-  { value: 'wishlist', label: 'Wishlist' },
-  { value: 'applied', label: 'Applied' },
-  { value: 'interviewing', label: 'Interviewing' },
-  { value: 'offer', label: 'Offer' },
-];
-
 export function StageFilter() {
   const { state, dispatch } = useWorkspace();
+  const filterPills: FilterPill[] = [
+    { value: 'all', label: 'All' },
+    ...getStageFilterValues(state.jobs).map((value) => ({
+      value,
+      label: formatStageLabel(value),
+    })),
+  ];
 
   function getCount(filter: JobListFilter): number {
     if (filter === 'all') return state.jobs.length;
-    return state.jobs.filter(
-      (job) => job.stage.toLowerCase() === filter.toLowerCase()
-    ).length;
+    return state.jobs.filter((job) => matchesJobFilter(job, filter)).length;
   }
 
   function handleClick(filter: JobListFilter) {
@@ -31,9 +29,12 @@ export function StageFilter() {
 
   return (
     <div className="flex flex-wrap gap-1 px-2 py-2 border-b border-border shrink-0">
-      {FILTER_PILLS.map((pill) => {
+      {filterPills.map((pill) => {
         const count = getCount(pill.value);
-        const isActive = state.jobListFilter === pill.value;
+        const isActive =
+          pill.value === 'all'
+            ? state.jobListFilter === 'all'
+            : normalizeStage(state.jobListFilter) === normalizeStage(pill.value);
         return (
           <button
             key={pill.value}

@@ -10,7 +10,7 @@ export function JobDetail() {
 
   if (!job) {
     return (
-      <div className="border-t border-border px-3 py-4 shrink-0">
+      <div className="px-3 py-4 shrink-0">
         <p className="text-xs text-muted-foreground text-center">
           Select a job to view details
         </p>
@@ -31,7 +31,7 @@ export function JobDetail() {
   }
 
   return (
-    <div className="border-t border-border shrink-0 p-2 flex flex-col gap-2">
+    <div className="shrink-0 max-h-[48%] min-h-[220px] overflow-hidden p-2 flex flex-col gap-2">
       {/* Company + Title row */}
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
@@ -69,15 +69,14 @@ export function JobDetail() {
       </div>
 
       {/* JD textarea */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 flex-1 min-h-0">
         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Job Description
         </label>
         <textarea
           value={job.jd}
           onChange={handleJdChange}
-          className="bg-card border border-border rounded-md text-xs font-mono leading-relaxed p-2 w-full resize-none outline-none focus:border-ring transition-colors text-foreground placeholder:text-muted-foreground"
-          style={{ minHeight: '120px' }}
+          className="bg-card border border-border rounded-md text-xs font-mono leading-relaxed p-2 w-full flex-1 min-h-[140px] resize-none outline-none focus:border-ring transition-colors text-foreground placeholder:text-muted-foreground overflow-y-auto"
           placeholder="Paste job description here…"
           spellCheck={false}
         />

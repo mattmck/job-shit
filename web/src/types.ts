@@ -23,6 +23,9 @@ export interface Scorecard {
   confidence: number;
   summary: string;
   categories: ScorecardCategory[];
+  documents: ScorecardDocument[];
+  notes: string[];
+  blockingIssues: string[];
 }
 
 export interface ScorecardCategory {
@@ -33,6 +36,18 @@ export interface ScorecardCategory {
   issues: string[];
 }
 
+export interface ScorecardDocument {
+  id: string;
+  label: string;
+  overall: number;
+  verdict: string;
+  confidence: number;
+  summary: string;
+  categories: ScorecardCategory[];
+  notes: string[];
+  blockingIssues: string[];
+}
+
 export interface GapAnalysis {
   matched: string[];
   missing: string[];
@@ -41,6 +56,8 @@ export interface GapAnalysis {
 }
 
 export interface EditorData {
+  kind: 'resume' | 'generic';
+  header?: ResumeHeaderFields;
   sections: EditorSection[];
 }
 
@@ -49,6 +66,13 @@ export interface EditorSection {
   heading: string;
   content: string;
   accepted: boolean;
+}
+
+export interface ResumeHeaderFields {
+  name: string;
+  role: string;
+  contact: string;
+  links: string;
 }
 
 export interface SourcePaths {
@@ -67,7 +91,16 @@ export interface PromptSources {
 export type ActivePanel = 'jobs' | 'sources' | 'config' | 'prompts' | null;
 export type ActiveDoc = 'resume' | 'cover';
 export type ViewMode = 'preview' | 'diff';
-export type JobListFilter = 'all' | 'wishlist' | 'applied' | 'interviewing' | 'offer';
+export type KnownJobStage =
+  | 'wishlist'
+  | 'applied'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'timeout'
+  | 'old wishlist'
+  | 'manual';
+export type JobListFilter = 'all' | KnownJobStage | (string & {});
 
 export interface WorkspaceState {
   jobs: Job[];
@@ -89,6 +122,7 @@ export interface WorkspaceState {
   sourcePaths: SourcePaths;
   promptSources: PromptSources;
   tailorQueue: string[];
+  tailorQueueTotal: number;
   tailorRunning: string | null;
   tailorRunningStartedAt: number;
   tailorLastSummary: { tailored: number; failed: number } | null;

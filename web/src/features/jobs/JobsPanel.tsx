@@ -10,10 +10,11 @@ import { TailorConfirmModal } from './TailorConfirmModal';
 import { PasteJDModal } from './PasteJDModal';
 
 export function JobsPanel() {
-  const { dispatch } = useWorkspace();
+  const { state, dispatch } = useWorkspace();
   const [isLoadingHuntr, setIsLoadingHuntr] = useState(false);
   const [tailorModalOpen, setTailorModalOpen] = useState(false);
   const [pasteModalOpen, setPasteModalOpen] = useState(false);
+  const checkedCount = state.jobs.filter((job) => job.checked).length;
 
   async function handleLoadHuntr() {
     setIsLoadingHuntr(true);
@@ -40,19 +41,19 @@ export function JobsPanel() {
   }
 
   function handleTailorConfirm(jobIds: string[]) {
-    dispatch({ type: 'SET_TAILOR_QUEUE', queue: jobIds });
+    dispatch({ type: 'SET_TAILOR_QUEUE', queue: jobIds, total: jobIds.length });
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Action buttons row */}
-      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-border shrink-0 flex-wrap">
+      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-border shrink-0 overflow-x-auto">
         <Button
           variant="outline"
           size="sm"
           onClick={handleLoadHuntr}
           disabled={isLoadingHuntr}
-          className="text-[11px] h-7 px-2"
+          className="text-[11px] h-7 px-2 whitespace-nowrap"
         >
           {isLoadingHuntr ? 'Loading…' : 'Load Huntr'}
         </Button>
@@ -60,7 +61,7 @@ export function JobsPanel() {
           variant="outline"
           size="sm"
           onClick={() => setPasteModalOpen(true)}
-          className="text-[11px] h-7 px-2"
+          className="text-[11px] h-7 px-2 whitespace-nowrap"
         >
           Paste JD
         </Button>
@@ -68,9 +69,9 @@ export function JobsPanel() {
           variant="outline"
           size="sm"
           onClick={() => setTailorModalOpen(true)}
-          className="text-[11px] h-7 px-2"
+          className="text-[11px] h-7 px-2 whitespace-nowrap"
         >
-          Tailor Selected
+          Tailor Selected{checkedCount > 0 ? ` (${checkedCount})` : ''}
         </Button>
       </div>
 
@@ -78,12 +79,14 @@ export function JobsPanel() {
       <StageFilter />
 
       {/* Job list — flex-1 so it fills remaining space */}
-      <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <JobList />
       </div>
 
-      {/* Job detail — shrinks to fit its content */}
-      <JobDetail />
+      {/* Job detail stays pinned to the bottom and scrolls internally */}
+      <div className="shrink-0 border-t border-border bg-card/60">
+        <JobDetail />
+      </div>
 
       <TailorConfirmModal
         open={tailorModalOpen}

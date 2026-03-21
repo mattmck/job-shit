@@ -10,7 +10,7 @@ const PANEL_CONFIG: Record<
   NonNullable<ActivePanel>,
   { title: string; width: number; placeholder: string }
 > = {
-  jobs: { title: 'JOBS', width: 300, placeholder: 'Jobs panel' },
+  jobs: { title: 'JOBS', width: 340, placeholder: 'Jobs panel' },
   sources: { title: 'SOURCES', width: 360, placeholder: 'Sources panel' },
   config: { title: 'CONFIG', width: 360, placeholder: 'Config panel' },
   prompts: { title: 'PROMPTS', width: 360, placeholder: 'Prompts panel' },
@@ -29,7 +29,7 @@ export function PanelContainer() {
 
   return (
     <div
-      className="flex flex-col border-r border-border bg-card shrink-0"
+      className="flex flex-col border-r border-border bg-card shrink-0 min-h-0"
       style={{ width: `${config.width}px` }}
     >
       {/* Panel header */}
@@ -47,13 +47,13 @@ export function PanelContainer() {
       </div>
 
       {/* Panel body */}
-      <div className="flex-1 overflow-y-auto flex flex-col">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {state.activePanel === 'jobs' ? (
           <JobsPanel />
         ) : state.activePanel === 'sources' ? (
           <SourcesPanel />
         ) : state.activePanel === 'config' ? (
-          <div className="p-3">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3">
             <ConfigPanel />
           </div>
         ) : state.activePanel === 'prompts' ? (

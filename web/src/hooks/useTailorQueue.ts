@@ -18,16 +18,22 @@ export function useTailorQueue() {
       dispatch({ type: 'SET_TAILOR_QUEUE', queue: state.tailorQueue.slice(1) });
       return;
     }
+    const currentJob = job;
 
     processingRef.current = true;
 
     async function processJob() {
+      dispatch({ type: 'SET_TAILOR_SUMMARY', summary: null });
       dispatch({ type: 'SET_TAILOR_RUNNING', id: jobId });
       dispatch({ type: 'UPDATE_JOB', id: jobId, patch: { status: 'tailoring', error: null } });
       dispatch({
         type: 'SET_RUN_FEEDBACK',
-        feedback: { text: `Tailoring ${job!.company} - ${job!.title}...`, type: 'working' },
+        feedback: { text: `Tailoring ${currentJob.company} - ${currentJob.title}...`, type: 'working' },
       });
+
+      let nextStatus: 'tailored' | 'error' = 'tailored';
+      let nextError: string | null = null;
+      let nextResult = currentJob.result;
 
       try {
         const body: api.ManualTailorBody = {
@@ -35,9 +41,9 @@ export function useTailorQueue() {
           bio: state.sourceBio,
           baseCoverLetter: state.sourceCoverLetter,
           resumeSupplemental: state.sourceSupplemental,
-          company: job!.company,
-          title: job!.title,
-          jd: job!.jd,
+          company: currentJob.company,
+          title: currentJob.title,
+          jd: currentJob.jd,
           provider: state.tailorProvider !== 'auto' ? state.tailorProvider : undefined,
           model: state.tailorModel !== 'auto' ? state.tailorModel : undefined,
           scoreProvider: state.scoreProvider !== 'auto' ? state.scoreProvider : undefined,
@@ -52,7 +58,7 @@ export function useTailorQueue() {
         try {
           gapAnalysis = await api.getGapAnalysis({
             resume: tailorResult.output.resume,
-            jd: job!.jd,
+            jd: currentJob.jd,
           });
         } catch {
           // Gap analysis is non-critical, continue without it
@@ -70,8 +76,16 @@ export function useTailorQueue() {
             },
           },
         });
+        nextResult = {
+          output: tailorResult.output,
+          scorecard: tailorResult.scorecard,
+          gapAnalysis,
+        };
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
+        nextStatus = 'error';
+        nextError = errorMessage;
+        nextResult = currentJob.result;
         dispatch({
           type: 'UPDATE_JOB',
           id: jobId,
@@ -85,9 +99,18 @@ export function useTailorQueue() {
       dispatch({ type: 'SET_TAILOR_RUNNING', id: null });
 
       if (nextQueue.length === 0) {
-        const jobs = state.jobs;
-        const tailored = jobs.filter((j) => j.status === 'tailored').length;
-        const failed = jobs.filter((j) => j.status === 'error').length;
+        const jobs = state.jobs.map((candidate) =>
+          candidate.id === jobId
+            ? {
+                ...candidate,
+                status: nextStatus,
+                error: nextError,
+                result: nextResult,
+              }
+            : candidate,
+        );
+        const tailored = jobs.filter((candidate) => candidate.status === 'tailored').length;
+        const failed = jobs.filter((candidate) => candidate.status === 'error').length;
         dispatch({
           type: 'SET_TAILOR_SUMMARY',
           summary: { tailored, failed },
@@ -101,7 +124,7 @@ export function useTailorQueue() {
       processingRef.current = false;
     }
 
-    processJob();
+    void processJob();
   }, [state.tailorQueue, state.tailorRunning, state.jobs, state.sourceResume, state.sourceBio, state.sourceCoverLetter, state.sourceSupplemental, state.tailorProvider, state.tailorModel, state.scoreProvider, state.scoreModel, state.promptSources, dispatch]);
 
   function enqueueJobs(jobIds: string[]) {

@@ -1,33 +1,26 @@
 import { useWorkspace } from '../../context';
 import type { Job } from '../../types';
+import { CheckCircle2, Circle, LoaderCircle, OctagonAlert, Sparkles } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/components/ui/utils';
+import { formatStageLabel, getStageBadgeClass, matchesJobFilter } from './stages';
 
-function getStatusIndicator(status: Job['status']): string {
+function getStatusIndicator(status: Job['status']) {
   switch (status) {
     case 'loaded':
-      return '○';
+      return <Circle className="h-3.5 w-3.5" strokeWidth={2} />;
     case 'tailoring':
-      return '⟳';
+      return <LoaderCircle className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />;
     case 'tailored':
-      return '●';
+      return <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />;
     case 'reviewed':
-      return '✓';
+      return <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />;
     case 'error':
-      return '✕';
+      return <OctagonAlert className="h-3.5 w-3.5" strokeWidth={2} />;
     default:
-      return '○';
+      return <Circle className="h-3.5 w-3.5" strokeWidth={2} />;
   }
-}
-
-function getStageBadgeClass(stage: string): string {
-  const lower = stage.toLowerCase();
-  if (lower === 'wishlist') return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (lower === 'applied') return 'bg-yellow-50 text-yellow-700 border-yellow-200';
-  if (lower === 'interviewing') return 'bg-purple-50 text-purple-700 border-purple-200';
-  if (lower === 'offer') return 'bg-green-50 text-green-700 border-green-200';
-  return 'bg-secondary text-muted-foreground border-border';
 }
 
 function JobItem({ job }: { job: Job }) {
@@ -41,14 +34,13 @@ function JobItem({ job }: { job: Job }) {
   function handleCheckChange(checked: boolean | 'indeterminate') {
     dispatch({ type: 'UPDATE_JOB', id: job.id, patch: { checked: checked === true } });
   }
-
-  const statusChar = getStatusIndicator(job.status);
+  const statusIcon = getStatusIndicator(job.status);
 
   return (
     <div
       onClick={handleClick}
       className={cn(
-        'flex items-center gap-2 px-2 py-1.5 cursor-pointer border-b border-border/50 hover:bg-secondary/30 transition-colors',
+        'flex items-center gap-2 px-2 pr-4 py-1.5 cursor-pointer border-b border-border/50 hover:bg-secondary/30 transition-colors',
         isSelected && 'bg-secondary border-l-2 border-l-primary pl-[6px]'
       )}
     >
@@ -73,7 +65,7 @@ function JobItem({ job }: { job: Job }) {
               getStageBadgeClass(job.stage)
             )}
           >
-            {job.stage}
+            {formatStageLabel(job.stage)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-1 mt-0.5">
@@ -82,7 +74,7 @@ function JobItem({ job }: { job: Job }) {
           </span>
           <span
             className={cn(
-              'shrink-0 text-[11px] font-mono',
+              'shrink-0 inline-flex w-5 justify-center',
               job.status === 'error' && 'text-destructive',
               job.status === 'reviewed' && 'text-green-600',
               job.status === 'tailored' && 'text-primary',
@@ -90,7 +82,7 @@ function JobItem({ job }: { job: Job }) {
               job.status === 'loaded' && 'text-muted-foreground'
             )}
           >
-            {statusChar}
+            {statusIcon}
           </span>
         </div>
       </div>
@@ -104,9 +96,7 @@ export function JobList() {
   const filteredJobs =
     state.jobListFilter === 'all'
       ? state.jobs
-      : state.jobs.filter(
-          (job) => job.stage.toLowerCase() === state.jobListFilter.toLowerCase()
-        );
+      : state.jobs.filter((job) => matchesJobFilter(job, state.jobListFilter));
 
   if (filteredJobs.length === 0) {
     return (
@@ -121,7 +111,7 @@ export function JobList() {
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 min-h-0">
       <div>
         {filteredJobs.map((job) => (
           <JobItem key={job.id} job={job} />

@@ -14,6 +14,19 @@ export function ScoreCards() {
 
   if (!activeJob || !scorecard) return null;
 
+  const documentCards = scorecard.documents.length > 0
+    ? scorecard.documents
+    : [
+        {
+          id: 'resume',
+          label: 'Resume',
+          overall: scorecard.overall,
+          summary: scorecard.summary,
+          verdict: scorecard.verdict,
+          confidence: scorecard.confidence,
+        },
+      ];
+
   function openDetails(id: string) {
     dispatch({ type: 'SET_SCORE_DETAILS', id });
   }
@@ -26,6 +39,9 @@ export function ScoreCards() {
         api.getScore({
           resume: activeJob.result.output.resume,
           jd: activeJob.jd,
+          coverLetter: activeJob.result.output.coverLetter,
+          company: activeJob.company,
+          jobTitle: activeJob.title,
           provider: state.scoreProvider !== 'auto' ? state.scoreProvider : undefined,
           model: state.scoreModel !== 'auto' ? state.scoreModel : undefined,
         }),
@@ -41,7 +57,7 @@ export function ScoreCards() {
         patch: {
           result: {
             ...activeJob.result,
-            scorecard: score as import('@/types').Scorecard,
+            scorecard: score,
             gapAnalysis: gap,
           },
         },
@@ -77,25 +93,15 @@ export function ScoreCards() {
         </div>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2.5">
-          {/* Overall score card */}
-          <ScoreCard
-            label="Overall"
-            score={scorecard.overall}
-            summary={scorecard.summary}
-            verdict={scorecard.verdict}
-            confidence={scorecard.confidence}
-            onClick={() => openDetails('overall')}
-          />
-
-          {/* Category cards */}
-          {scorecard.categories.map((cat, i) => (
+          {documentCards.map((document) => (
             <ScoreCard
-              key={cat.name}
-              label={cat.name}
-              score={cat.score}
-              summary={cat.summary}
-              issues={cat.issues}
-              onClick={() => openDetails(`category-${i}`)}
+              key={document.id}
+              label={document.label}
+              score={document.overall}
+              summary={document.summary}
+              verdict={document.verdict}
+              confidence={document.confidence}
+              onClick={() => openDetails(document.id)}
             />
           ))}
         </div>

@@ -1,4 +1,4 @@
-import logoImage from 'figma:asset/60d160a8ba701194eb5ee91feccf319c08ab00bc.png';
+import logoImage from '../../assets/60d160a8ba701194eb5ee91feccf319c08ab00bc.png';
 
 interface LogoProps {
   variant?: 'full' | 'icon' | 'wordmark';

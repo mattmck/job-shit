@@ -6,11 +6,12 @@ Job applications that actually fit. Turn your experience and a job description i
 
 See [`docs/generation-flow.html`](docs/generation-flow.html) for a full architecture diagram (also in [landscape](docs/generation-flow-landscape.html)).
 
-Two entry points, one pipeline:
+Three entry points, one pipeline:
 
 ```
-  [manual]  resume.md + bio.md + job.txt + --company
-  [huntr]   Wishlist jobs pulled automatically via Huntr API
+  [CLI]        resume.md + bio.md + job.txt + --company
+  [Huntr CLI]  Wishlist jobs pulled automatically via Huntr API
+  [Workbench]  Browser UI at http://localhost:4312
        │
        ▼
   Provider (auto mode falls back by env priority)
@@ -40,6 +41,7 @@ Stack resume maintenance runs as a separate track using `tailorResume()` — sin
 cp .env.example .env
 # Add at least one AI provider key (see Environment variables below)
 npm install
+cd web && npm install && cd ..
 npm run build
 ```
 
@@ -135,6 +137,34 @@ tailored huntr tailor-all
 
 If you've already used huntr-cli, no extra config is needed.
 
+### Workbench (browser UI)
+
+```bash
+# Start the API server + serve the built frontend
+tailored serve          # or: npm run serve
+
+# Development mode — Vite dev server with hot reload, proxying API to :4312
+npm run serve &         # API server in background
+npm run web             # Vite dev server on http://localhost:5173
+```
+
+The workbench is a React + Vite + Tailwind CSS app in `web/`. In production the backend
+serves the built frontend from `web/dist/`; in development `npm run web` starts the Vite
+dev server on port 5173 and proxies `/api` requests to the backend on port 4312.
+
+**Layout:** top bar (workspace management, provider/model selection) → icon rail (panel switcher) → resizable three-column layout (jobs/sources/config panel | editor | preview) with score cards.
+
+**Features:**
+- Huntr job list with stage filtering, or paste a JD manually
+- Batch tailoring with queued execution
+- Live markdown editor with section-level AI regeneration
+- Side-by-side preview with HTML rendering and diff view
+- Heuristic + AI scoring with detailed breakdown
+- Missing keyword analysis against the JD
+- PDF / HTML / Markdown export
+- Workspace save / load for resuming later
+- Customizable system prompts and resume themes
+
 ## Environment variables
 
 At least one AI provider key is required. In `auto` mode, the first matching configured provider wins.
@@ -206,14 +236,21 @@ selectors use these profile ids directly.
 ## Development
 
 ```bash
-npm run dev -- tailor --help   # run via tsx without building
-npm run build                  # compile to dist/
+npm run dev -- tailor --help   # run CLI via tsx without building
+npm run serve                  # start API server (tsx, no build needed)
+npm run web                    # start Vite dev server for the React frontend
+npm run build                  # compile backend to dist/ + build frontend to web/dist/
+npm run web:build              # build frontend only
 npm run shots:workbench        # capture prompt-focused workbench screenshots
 npm run video:promo            # build a rough promo animatic from the screenshot pack
 npm test                       # run tests (vitest)
 npm run typecheck              # tsc --noEmit
 npm run lint                   # eslint
 ```
+
+The project is a monorepo with two package roots:
+- **Root** (`package.json`) — CLI + API server (Node.js/TypeScript/Commander)
+- **`web/`** (`web/package.json`) — React frontend (Vite + Tailwind CSS 4 + Radix UI)
 
 Sample files for testing without real personal data are in `sample.*.md`.
 

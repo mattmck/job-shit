@@ -4,7 +4,7 @@ import { reconstructEditorData } from './markdown.js';
 export function editorDataMatchesDoc(
   editorData: EditorData | null,
   doc: ActiveDoc,
-): boolean {
+): editorData is EditorData {
   if (!editorData) return false;
   return doc === 'resume' ? editorData.kind === 'resume' : editorData.kind !== 'resume';
 }
@@ -16,10 +16,7 @@ export function getJobDocumentMarkdown(
   if (!job?.result) return null;
 
   if (editorDataMatchesDoc(job._editorData, doc)) {
-    const editorData = job._editorData;
-    if (editorData) {
-      return reconstructEditorData(editorData);
-    }
+    return reconstructEditorData(job._editorData);
   }
 
   return doc === 'resume'
@@ -33,7 +30,7 @@ export function getJobDocumentsForRegrade(
   if (!job?.result) return null;
 
   return {
-    resume: getJobDocumentMarkdown(job, 'resume') ?? job.result.output.resume,
-    coverLetter: getJobDocumentMarkdown(job, 'cover') ?? job.result.output.coverLetter,
+    resume: getJobDocumentMarkdown(job, 'resume')!,
+    coverLetter: getJobDocumentMarkdown(job, 'cover')!,
   };
 }

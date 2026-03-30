@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import * as api from '../../api/client';
+import * as api from '@/api/client';
+import { escHtml } from '@/lib/markdown';
 
 interface DiffViewProps {
   original: string;
@@ -30,7 +31,8 @@ export function DiffView({ original, modified }: DiffViewProps) {
       .catch((err) => {
         if (err.name !== 'AbortError') {
           console.error('DiffView: getDiff failed', err);
-          setHtml(`<p style="color:red">Failed to load diff: ${err.message}</p>`);
+          const message = err instanceof Error ? err.message : String(err);
+          setHtml(`<p style="color:red">Failed to load diff: ${escHtml(message)}</p>`);
         }
       })
       .finally(() => {

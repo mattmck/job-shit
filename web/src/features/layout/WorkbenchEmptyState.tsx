@@ -50,9 +50,9 @@ export function WorkbenchEmptyState({
       <div className="relative z-10 mt-8 flex flex-col gap-4">
         {tips.length > 0 && (
           <div className="grid gap-2 md:grid-cols-3">
-            {tips.map((tip) => (
+            {tips.map((tip, index) => (
               <div
-                key={tip}
+                key={`${tip}-${index}`}
                 className="rounded-2xl border border-border/70 bg-white/60 px-3 py-3 text-sm leading-6 text-foreground/82"
               >
                 {tip}

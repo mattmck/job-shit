@@ -69,6 +69,7 @@ export function registerReviewCommand(program: Command): void {
         jobTitle,
         jobDescription,
         model: opts.model || 'auto',
+        gapAnalysis: selectedVersion.result.gapAnalysis,
       });
 
       if (reviewedResume === selectedVersion.result.output.resume) {

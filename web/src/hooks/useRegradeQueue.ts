@@ -23,6 +23,7 @@ export function useRegradeQueue() {
       return;
     }
     const currentJob = job;
+    const currentResult = job.result;
 
     if (state.regradeQueue.length === state.regradeQueueTotal) {
       hadFailureRef.current = false;
@@ -35,7 +36,18 @@ export function useRegradeQueue() {
 
       const documents = getJobDocumentsForRegrade(currentJob);
       if (!documents) {
-        dispatch({ type: 'SET_REGRADE_QUEUE', queue: state.regradeQueue.slice(1) });
+        const latestQueue = stateRef.current.regradeQueue;
+        const nextQueue =
+          latestQueue[0] === jobId
+            ? latestQueue.slice(1)
+            : latestQueue.filter((id) => id !== jobId);
+        hadFailureRef.current = true;
+        console.error('Re-grade skipped: no documents available for job', currentJob.id);
+        dispatch({
+          type: 'SET_RUN_FEEDBACK',
+          feedback: { text: `Re-grade skipped for ${currentJob.company}: no documents available`, type: 'error' },
+        });
+        dispatch({ type: 'SET_REGRADE_QUEUE', queue: nextQueue });
         dispatch({ type: 'SET_REGRADE_RUNNING', id: null });
         processingRef.current = false;
         return;
@@ -65,8 +77,11 @@ export function useRegradeQueue() {
             error: null,
             scoresStale: false,
             result: {
-              ...currentJob.result,
-              output: documents,
+              ...currentResult,
+              output: {
+                ...currentResult.output,
+                ...documents,
+              },
               scorecard,
               gapAnalysis,
             },

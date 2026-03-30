@@ -437,7 +437,6 @@ export function PreviewColumn() {
                     ref={previewFrameRef}
                     onLoad={handlePreviewLoad}
                     srcDoc={previewHtml}
-                    scrolling="no"
                     className="block w-full rounded-[1rem] border border-border/70 bg-white"
                     style={{
                       height: previewHeight ? `${previewHeight}px` : '100%',

@@ -53,7 +53,9 @@ export function WorkspaceCombobox({ value, onChange, onSelect, options, placehol
           {filtered.length > 0 ? (
             filtered.map((option) => (
               <button
+                type="button"
                 key={option.id}
+                onClick={() => handleSelect(option.name)}
                 onMouseDown={(e) => { e.preventDefault(); handleSelect(option.name); }}
                 className={cn(
                   'flex w-full items-center justify-between rounded-[0.9rem] px-3 py-2 text-left text-sm text-popover-foreground transition-colors hover:bg-accent/75 hover:text-accent-foreground',

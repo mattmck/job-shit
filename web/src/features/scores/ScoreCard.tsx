@@ -69,6 +69,7 @@ export function ScoreCard({
 }: ScoreCardProps) {
   const colors = getScoreColors(score);
   const pct = Math.min(100, Math.round((score / maxScore) * 100));
+  const verdictStyle = verdict ? getVerdictStyle(verdict) : null;
 
   return (
     <div
@@ -110,14 +111,11 @@ export function ScoreCard({
 
         {(verdict || confidence !== undefined) && (
           <div className="flex flex-wrap gap-1 pt-1">
-            {verdict && (() => {
-              const vs = getVerdictStyle(verdict);
-              return (
-                <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium', vs.className)}>
-                  {vs.label}
-                </span>
-              );
-            })()}
+            {verdictStyle && (
+              <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium', verdictStyle.className)}>
+                {verdictStyle.label}
+              </span>
+            )}
             {confidence !== undefined && (
               <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium', getConfidenceStyle(confidence))}>
                 {confidence}% confidence

@@ -46,7 +46,9 @@ export function StageFilter() {
                 : normalizeStage(state.jobListFilter) === normalizeStage(pill.value);
             return (
               <button
+                type="button"
                 key={pill.value}
+                aria-pressed={isActive}
                 onClick={() => handleClick(pill.value)}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors whitespace-nowrap',

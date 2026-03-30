@@ -42,8 +42,8 @@ export function JobQueueStatus({
 
   const currentJob = state.jobs.find((job) => job.id === runningId);
   const resolvedTotal = Math.max(total, queue.length, 1);
-  const remaining = Math.max(queue.length, 1);
-  const currentPosition = Math.min(resolvedTotal, resolvedTotal - remaining + 1);
+  const queuedCount = queue.length;
+  const currentPosition = Math.min(resolvedTotal, resolvedTotal - queuedCount + 1);
   const queuedAfterCurrent = Math.max(queue.length - 1, 0);
   const progress = Math.max(0, Math.min(100, (currentPosition / resolvedTotal) * 100));
 

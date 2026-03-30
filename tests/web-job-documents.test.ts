@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getJobDocumentMarkdown, getJobDocumentsForRegrade } from '../web/src/lib/job-documents.js';
+import { initialState, reducer } from '../web/src/state.js';
 import type { Job } from '../web/src/types.js';
 
 function makeJob(overrides: Partial<Job> = {}): Job {
@@ -81,6 +82,75 @@ describe('job document helpers', () => {
 
     expect(getJobDocumentsForRegrade(job)).toEqual({
       resume: '# Resume\n\nOriginal resume',
+      coverLetter: expect.stringContaining('Edited cover letter opening'),
+    });
+  });
+
+  it('persists edited markdown into job output before switching views and regrading', () => {
+    const resumeEditorData = {
+      kind: 'resume' as const,
+      header: {
+        name: 'Jane Doe',
+        role: 'Staff Engineer',
+        contact: 'jane@example.com',
+        links: 'example.com',
+      },
+      sections: [
+        {
+          id: 'summary',
+          heading: 'Summary',
+          type: 'text' as const,
+          content: 'Edited resume summary',
+          items: [],
+          jobs: [],
+          accepted: false,
+        },
+      ],
+    };
+
+    const coverEditorData = {
+      kind: 'generic' as const,
+      sections: [
+        {
+          id: 'body',
+          heading: 'Opening',
+          type: 'text' as const,
+          content: 'Edited cover letter opening',
+          items: [],
+          jobs: [],
+          accepted: false,
+        },
+      ],
+    };
+
+    const job = makeJob();
+    const resumeMarkdown = getJobDocumentMarkdown({ ...job, _editorData: resumeEditorData }, 'resume');
+
+    expect(resumeMarkdown).toContain('Edited resume summary');
+
+    const state = {
+      ...initialState,
+      jobs: [job],
+    };
+
+    const persisted = reducer(state, {
+      type: 'SET_JOB_DOCUMENT_STATE',
+      id: job.id,
+      doc: 'resume',
+      editorData: resumeEditorData,
+      markdown: resumeMarkdown!,
+    });
+
+    const switchedJob = {
+      ...persisted.jobs[0]!,
+      _editorData: coverEditorData,
+    };
+
+    expect(switchedJob.result?.output.resume).toContain('Edited resume summary');
+    expect(getJobDocumentMarkdown(switchedJob, 'resume')).toContain('Edited resume summary');
+    expect(getJobDocumentMarkdown(switchedJob, 'cover')).toContain('Edited cover letter opening');
+    expect(getJobDocumentsForRegrade(switchedJob)).toEqual({
+      resume: expect.stringContaining('Edited resume summary'),
       coverLetter: expect.stringContaining('Edited cover letter opening'),
     });
   });

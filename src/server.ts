@@ -43,6 +43,12 @@ import {
   TailorInput,
   WorkspaceSnapshot,
 } from './types/index.js';
+import { getDb } from './db/instance.js';
+import { createWorker } from './worker.js';
+import { WorkspaceRepo } from './repositories/workspaces.js';
+import { JobRepo } from './repositories/jobs.js';
+import { DocumentRepo } from './repositories/documents.js';
+import { TaskRepo } from './repositories/tasks.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 4312;
@@ -823,6 +829,19 @@ export async function startWorkbenchServer(
       });
     }
   });
+
+  // --- DB + Worker startup ---
+  const db = getDb();
+  // Reset any tasks that were mid-flight when server last stopped
+  new TaskRepo(db).resetStuck();
+  const worker = createWorker(db, {
+    runTailor: (input) => runTailorWorkflow({ input, agents: resolveAgents() }),
+  });
+  const { stop: stopWorker } = worker.start(2000);
+
+  process.on('SIGTERM', () => { stopWorker(); process.exit(0); });
+  process.on('SIGINT',  () => { stopWorker(); process.exit(0); });
+  // --- end DB + Worker startup ---
 
   await new Promise<void>((resolve) => {
     server.listen(port, host, () => resolve());

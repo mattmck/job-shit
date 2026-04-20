@@ -11,6 +11,7 @@ interface UseTaskPollingOptions {
 
 export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onActiveTask, intervalMs = 2000 }: UseTaskPollingOptions) {
   const knownTasksRef = useRef<Map<string, TaskRecord>>(new Map());
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -25,6 +26,11 @@ export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onA
       const updatedAt = Date.parse(task.updatedAt);
       return createdAt >= observedSince || updatedAt >= observedSince;
     }
+
+    const schedulePoll = (delay: number) => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(poll, delay);
+    };
 
     async function poll() {
       if (cancelled) return;
@@ -66,18 +72,24 @@ export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onA
 
         const hasActive = tasks.some(t => t.status === 'pending' || t.status === 'running');
         if (hasActive && !cancelled) {
-          setTimeout(poll, intervalMs);
+          schedulePoll(intervalMs);
         } else if (!cancelled) {
           // slow poll when idle
-          setTimeout(poll, intervalMs * 5);
+          schedulePoll(intervalMs * 5);
         }
       } catch (err) {
         console.warn('[workbench] Task polling failed', err);
-        if (!cancelled) setTimeout(poll, intervalMs * 5);
+        if (!cancelled) schedulePoll(intervalMs * 5);
       }
     }
 
     poll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
   }, [workspaceId, onTaskCompleted, onTaskFailed, onActiveTask, intervalMs]);
 }

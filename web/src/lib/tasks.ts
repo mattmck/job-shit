@@ -1,4 +1,4 @@
-import type { TaskRecord } from '../api/client';
+import type { TaskRecord } from '../api/client.js';
 
 interface TailorTaskMetadata {
   frontendJobId: string;

@@ -132,4 +132,53 @@ describe('analyzeGapWithAI', () => {
     expect(result.missingKeywords.map((k) => k.term)).toEqual(['K8s']);
     expect(result.partialMatches.map((p) => p.jdTerm)).toEqual(['TypeScript']);
   });
+
+  it('keeps CI/CD terms when only alias forms appear in the JD', async () => {
+    const result = await analyzeGapWithAI(
+      'Built deployment pipelines with GitHub Actions.',
+      'Platform engineer.',
+      'Need CI CD ownership and strong incident response habits.',
+      'Platform Engineer',
+      'test-model',
+      async () => JSON.stringify({
+        matchedKeywords: [],
+        missingKeywords: [{ term: 'CI/CD', category: 'operational' }],
+        partialMatches: [],
+        impliedSkills: [],
+        experienceRequirements: [],
+        overallFit: 'moderate',
+        narrative: '',
+        exactPhrases: [],
+        tailoringHints: [],
+      }),
+    );
+
+    expect(result.missingKeywords.map((k) => k.term)).toEqual(['CI/CD']);
+  });
+
+  it('does not collapse C++ and C# terms to generic C during grounding', async () => {
+    const result = await analyzeGapWithAI(
+      'Built backend services in C++.',
+      'Systems engineer.',
+      'Looking for C# and distributed systems experience.',
+      'Systems Engineer',
+      'test-model',
+      async () => JSON.stringify({
+        matchedKeywords: [],
+        missingKeywords: [
+          { term: 'C#', category: 'language' },
+          { term: 'C++', category: 'language' },
+        ],
+        partialMatches: [],
+        impliedSkills: [],
+        experienceRequirements: [],
+        overallFit: 'moderate',
+        narrative: '',
+        exactPhrases: [],
+        tailoringHints: [],
+      }),
+    );
+
+    expect(result.missingKeywords.map((k) => k.term)).toEqual(['C#']);
+  });
 });

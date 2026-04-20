@@ -92,24 +92,33 @@ function normalizeTerm(term: string): string {
   return term
     .toLowerCase()
     .replace(/\.js\b/g, '')
-    .replace(/[.,/#!$%^&*;:{}=\-_`~()+?'"]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s+#/]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 // Common aliases / expansions the LLM might use that don't substring-match the JD.
-const TERM_ALIASES: Record<string, string[]> = {
+const RAW_TERM_ALIASES: Record<string, string[]> = {
   'k8s': ['kubernetes'],
   'kubernetes': ['k8s'],
   'gcp': ['google cloud', 'google cloud platform'],
   'aws': ['amazon web services'],
-  'ci/cd': ['cicd', 'continuous integration', 'continuous delivery', 'continuous deployment'],
+  'ci/cd': ['ci cd', 'cicd', 'continuous integration', 'continuous delivery', 'continuous deployment'],
   'postgres': ['postgresql'],
   'postgresql': ['postgres'],
   'node': ['nodejs', 'node.js'],
   'typescript': ['ts'],
   'javascript': ['js'],
 };
+
+const TERM_ALIASES: Record<string, string[]> = Object.fromEntries(
+  Object.entries(RAW_TERM_ALIASES).map(([term, aliases]) => [
+    normalizeTerm(term),
+    aliases
+      .map((alias) => normalizeTerm(alias))
+      .filter((alias) => alias.length > 0),
+  ]),
+);
 
 function termAppearsInJd(term: string, jdNormalized: string): boolean {
   const normalized = normalizeTerm(term);
@@ -119,7 +128,7 @@ function termAppearsInJd(term: string, jdNormalized: string): boolean {
   const tokens = normalized.split(' ').filter((t) => t.length > 1);
   if (tokens.length > 1 && tokens.every((t) => jdNormalized.includes(t))) return true;
   const aliases = TERM_ALIASES[normalized];
-  if (aliases?.some((a) => jdNormalized.includes(a))) return true;
+  if (aliases?.some((alias) => jdNormalized.includes(alias))) return true;
   return false;
 }
 

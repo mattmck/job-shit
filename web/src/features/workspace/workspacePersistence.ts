@@ -258,9 +258,15 @@ export function buildWorkspaceSnapshot(state: WorkspaceState): Record<string, un
 }
 
 export function getWorkspaceHuntrIdsMissingStage(workspace: SavedWorkspaceRecord): string[] {
+  const shouldRefreshStage = (rawStage: string | null | undefined): boolean => {
+    const stage = normalizeStage(rawStage);
+    return !stage || stage === 'other' || isStatusLikeStage(stage);
+  };
+
   if (!workspace.snapshot && Array.isArray(workspace.jobs)) {
     return workspace.jobs
       .filter((job) => job.source !== 'manual')
+      .filter((job) => shouldRefreshStage(job.stage))
       .map((job) => job.huntrId ?? null)
       .filter((id): id is string => Boolean(id));
   }
@@ -270,6 +276,7 @@ export function getWorkspaceHuntrIdsMissingStage(workspace: SavedWorkspaceRecord
   return getSavedJobs(snapshot)
     .filter((job) => asString(job.id))
     .filter((job) => asString(job.source) !== 'manual')
+    .filter((job) => shouldRefreshStage(asString(job.stage) || asString(job.listName)))
     .map((job) => asString(job.huntrId) || asString(job.id))
     .filter((id): id is string => Boolean(id));
 }

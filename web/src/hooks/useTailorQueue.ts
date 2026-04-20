@@ -91,8 +91,7 @@ export function useTailorQueue() {
           });
         }
 
-        // Create a DB job entry for this in-memory job
-        const dbJob = await api.createJob(workspaceId, {
+        const jobPayload = {
           company: currentJob.company,
           title: currentJob.title || undefined,
           jd: currentJob.jd || undefined,
@@ -100,25 +99,47 @@ export function useTailorQueue() {
           source: currentJob.source ?? (currentJob.stage === 'manual' ? 'manual' : 'huntr'),
           huntrId: currentJob.huntrId ?? (currentJob.source === 'manual' ? undefined : currentJob.id),
           listAddedAt: currentJob.listAddedAt ?? null,
-        });
-        console.info('[workbench] Created DB job for tailoring', {
-          frontendJobId: jobId,
-          dbJobId: dbJob.id,
-          workspaceId,
-        });
-        dispatch({
-          type: 'UPDATE_JOB',
-          id: jobId,
-          patch: {
+        };
+
+        let dbJobId = currentJob.dbJobId;
+        if (dbJobId) {
+          const updatedJob = await api.updateJob(workspaceId, dbJobId, jobPayload);
+          dbJobId = updatedJob.id;
+          dispatch({
+            type: 'UPDATE_JOB',
+            id: jobId,
+            patch: {
+              dbJobId: updatedJob.id,
+              huntrId: updatedJob.huntrId ?? currentJob.huntrId ?? (currentJob.source === 'manual' ? null : currentJob.id),
+            },
+          });
+          console.info('[workbench] Updated existing DB job for tailoring', {
+            frontendJobId: jobId,
+            dbJobId: updatedJob.id,
+            workspaceId,
+          });
+        } else {
+          const dbJob = await api.createJob(workspaceId, jobPayload);
+          dbJobId = dbJob.id;
+          console.info('[workbench] Created DB job for tailoring', {
+            frontendJobId: jobId,
             dbJobId: dbJob.id,
-            huntrId: dbJob.huntrId ?? currentJob.huntrId ?? (currentJob.source === 'manual' ? null : currentJob.id),
-          },
-        });
+            workspaceId,
+          });
+          dispatch({
+            type: 'UPDATE_JOB',
+            id: jobId,
+            patch: {
+              dbJobId: dbJob.id,
+              huntrId: dbJob.huntrId ?? currentJob.huntrId ?? (currentJob.source === 'manual' ? null : currentJob.id),
+            },
+          });
+        }
 
         // Enqueue the tailor task; store the frontend job ID so the poll callback can map back
         const task = await api.enqueueTask({
           workspaceId,
-          jobId: dbJob.id,
+          jobId: dbJobId,
           type: 'tailor',
           agents: {
             tailoringProvider: stateRef.current.tailorProvider !== 'auto' ? stateRef.current.tailorProvider : undefined,
@@ -147,7 +168,7 @@ export function useTailorQueue() {
         console.info('[workbench] Enqueued tailoring task', {
           taskId: task.id,
           frontendJobId: jobId,
-          dbJobId: dbJob.id,
+          dbJobId,
         });
 
         // Remove from queue; tailorRunning stays set until the poll callback clears it

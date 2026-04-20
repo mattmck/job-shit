@@ -62,8 +62,7 @@ export async function regenerateResumeSection(
 ): Promise<RegenerateResumeSectionResult> {
   const sections = parseResumeSections(args.resume);
   const normalizedHeading = args.sectionHeading?.trim().toLowerCase();
-  const index = sections.findIndex((section) => section.id === args.sectionId)
-    ?? -1;
+  const index = sections.findIndex((section) => section.id === args.sectionId);
   const fallbackIndex = index === -1 && normalizedHeading
     ? sections.findIndex((section) => section.heading.trim().toLowerCase() === normalizedHeading)
     : -1;

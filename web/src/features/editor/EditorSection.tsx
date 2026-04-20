@@ -237,7 +237,7 @@ function JobEntryEditor({
       // Convert text → bullets
       const lines = (job.detailsText ?? '').split('\n').filter((l) => l.trim());
       const bullets = lines.length > 0
-        ? lines.map((text) => ({ id: genId(), text }))
+        ? lines.map((text) => ({ id: genId(), text: text.trim() }))
         : [{ id: genId(), text: '' }];
       onUpdate({ ...job, detailsMode: 'bullets', bullets });
     }

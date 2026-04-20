@@ -48,7 +48,7 @@ export function MissingKeywords() {
           </span>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          {matched.length} matched · {missing.length} missing
+          {matched.length} matched{partial.length > 0 ? ` · ${partial.length} partial` : ''} · {missing.length} missing
         </p>
 
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[rgba(116,121,134,0.12)]">

@@ -130,11 +130,16 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
       const incomingKeys = new Set(action.jobs.map(legacyHuntrMatchKey).filter((key): key is string => Boolean(key)));
       const mergedIds = new Set<string>();
       const merged = action.jobs.map((incoming) => {
-        const existing = existingById.get(incoming.id)
-          ?? (incoming.huntrId ? existingByHuntrId.get(incoming.huntrId) : undefined)
-          ?? (incoming.source !== 'manual'
-            ? legacyMatchesByKey.get(legacyHuntrMatchKey(incoming) ?? '') ?? undefined
-            : undefined);
+        let existing = existingById.get(incoming.id)
+          ?? (incoming.huntrId ? existingByHuntrId.get(incoming.huntrId) : undefined);
+        if (!existing && incoming.source !== 'manual') {
+          const legacyKey = legacyHuntrMatchKey(incoming) ?? '';
+          const legacyMatch = legacyMatchesByKey.get(legacyKey);
+          if (legacyMatch && !mergedIds.has(legacyMatch.id)) {
+            existing = legacyMatch;
+            legacyMatchesByKey.delete(legacyKey);
+          }
+        }
         if (!existing) {
           mergedIds.add(incoming.id);
           return incoming;

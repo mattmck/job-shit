@@ -110,7 +110,9 @@ export function useTailorQueue() {
             id: jobId,
             patch: {
               dbJobId: updatedJob.id,
-              huntrId: updatedJob.huntrId ?? currentJob.huntrId ?? (currentJob.source === 'manual' ? null : currentJob.id),
+              huntrId: updatedJob.huntrId
+                ?? currentJob.huntrId
+                ?? (currentJob.source === 'manual' ? null : currentJob.id),
             },
           });
           console.info('[workbench] Updated existing DB job for tailoring', {
@@ -131,7 +133,9 @@ export function useTailorQueue() {
             id: jobId,
             patch: {
               dbJobId: dbJob.id,
-              huntrId: dbJob.huntrId ?? currentJob.huntrId ?? (currentJob.source === 'manual' ? null : currentJob.id),
+              huntrId: dbJob.huntrId
+                ?? currentJob.huntrId
+                ?? (currentJob.source === 'manual' ? null : currentJob.id),
             },
           });
         }

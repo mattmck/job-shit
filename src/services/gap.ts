@@ -92,6 +92,8 @@ function normalizeTerm(term: string): string {
   return term
     .toLowerCase()
     .replace(/\.js\b/g, '')
+    // Remove everything except unicode letters (\p{L}), numbers (\p{N}),
+    // whitespace, +, #, and / so terms like C++, C#, and CI/CD stay distinguishable.
     .replace(/[^\p{L}\p{N}\s+#/]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();

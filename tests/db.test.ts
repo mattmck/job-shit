@@ -29,6 +29,13 @@ describe('runMigrations', () => {
       expect(tables).toContain('jobs');
       expect(tables).toContain('job_documents');
       expect(tables).toContain('tasks');
+      expect(tables).toContain('job_scores');
+      expect(tables).toContain('job_gap_analyses');
+      expect(tables).toContain('gap_keywords');
+      expect(tables).toContain('resume_headers');
+      expect(tables).toContain('resume_sections');
+      expect(tables).toContain('resume_job_entries');
+      expect(tables).toContain('resume_bullets');
     } finally {
       cleanup();
     }
@@ -67,10 +74,12 @@ describe('WorkspaceRepo', () => {
     try {
       runMigrations(db);
       const repo = new WorkspaceRepo(db);
-      repo.create({ name: 'First' });
+      const w1 = repo.create({ name: 'First' });
       repo.create({ name: 'Second' });
+      // Explicitly touch 'First' so it has the most-recent updatedAt
+      repo.update(w1.id, { name: 'First' });
       const list = repo.list();
-      expect(list[0].name).toBe('Second');
+      expect(list[0].name).toBe('First');
     } finally {
       cleanup();
     }
@@ -144,6 +153,59 @@ describe('JobRepo', () => {
       const job = repo.create({ workspaceId: ws.id, company: 'X' });
       repo.update(job.id, { stage: 'applied' });
       expect(repo.findById(job.id)?.stage).toBe('applied');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('stores Huntr list-added timestamps', () => {
+    const { db, cleanup } = makeTempDb();
+    try {
+      const ws = makeWorkspace(db);
+      const repo = new JobRepo(db);
+      const job = repo.create({
+        workspaceId: ws.id,
+        company: 'X',
+        listAddedAt: '2026-04-18T12:00:00.000Z',
+      });
+      expect(repo.findById(job.id)?.listAddedAt).toBe('2026-04-18T12:00:00.000Z');
+
+      repo.update(job.id, { listAddedAt: '2026-04-19T12:00:00.000Z' });
+      expect(repo.findById(job.id)?.listAddedAt).toBe('2026-04-19T12:00:00.000Z');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('updates an existing Huntr job instead of creating a duplicate', () => {
+    const { db, cleanup } = makeTempDb();
+    try {
+      const ws = makeWorkspace(db);
+      const repo = new JobRepo(db);
+      const first = repo.createOrUpdate({
+        workspaceId: ws.id,
+        company: 'Acme',
+        title: 'Engineer',
+        stage: 'wishlist',
+        source: 'huntr',
+        huntrId: 'huntr-1',
+        listAddedAt: '2026-04-18T12:00:00.000Z',
+      });
+      const second = repo.createOrUpdate({
+        workspaceId: ws.id,
+        company: 'Acme Updated',
+        title: 'Staff Engineer',
+        stage: 'interview',
+        source: 'huntr',
+        huntrId: 'huntr-1',
+        listAddedAt: '2026-04-19T12:00:00.000Z',
+      });
+
+      expect(second.id).toBe(first.id);
+      expect(second.company).toBe('Acme Updated');
+      expect(second.stage).toBe('interview');
+      expect(second.listAddedAt).toBe('2026-04-19T12:00:00.000Z');
+      expect(repo.listByWorkspace(ws.id)).toHaveLength(1);
     } finally {
       cleanup();
     }

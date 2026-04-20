@@ -227,8 +227,8 @@ function JobEntryEditor({
     );
   }
 
-  function handleToggleDetailsMode() {
-    const next: 'bullets' | 'text' = detailsMode === 'bullets' ? 'text' : 'bullets';
+  function handleSetDetailsMode(next: 'bullets' | 'text') {
+    if (next === detailsMode) return;
     if (next === 'text') {
       // Convert bullets → text
       const text = job.bullets.map((b) => b.text).filter(Boolean).join('\n');
@@ -285,7 +285,7 @@ function JobEntryEditor({
           <div className="toolbar-segment flex rounded-full p-0.5">
             <button
               type="button"
-              onClick={handleToggleDetailsMode}
+              onClick={() => handleSetDetailsMode('bullets')}
               className={cn(
                 'rounded-full px-2.5 py-1 text-[10px] font-medium transition-all',
                 detailsMode === 'bullets'
@@ -297,7 +297,7 @@ function JobEntryEditor({
             </button>
             <button
               type="button"
-              onClick={handleToggleDetailsMode}
+              onClick={() => handleSetDetailsMode('text')}
               className={cn(
                 'rounded-full px-2.5 py-1 text-[10px] font-medium transition-all',
                 detailsMode === 'text'

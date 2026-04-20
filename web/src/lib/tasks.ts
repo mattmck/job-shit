@@ -15,7 +15,14 @@ function asString(value: unknown): string | undefined {
 }
 
 export function getTailorTaskMetadata(task: Pick<TaskRecord, 'jobId' | 'inputJson'>): TailorTaskMetadata {
-  const envelope = asRecord(JSON.parse(task.inputJson || '{}'));
+  let parsed: unknown = {};
+  try {
+    parsed = JSON.parse(task.inputJson || '{}');
+  } catch {
+    parsed = {};
+  }
+
+  const envelope = asRecord(parsed);
   const input = asRecord(envelope.input);
 
   return {

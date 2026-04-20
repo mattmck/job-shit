@@ -105,7 +105,7 @@ export class ScoreRepo {
   findLatestForJobs(jobIds: string[]): Record<string, ScoreRow> {
     if (jobIds.length === 0) return {};
 
-    const placeholders = jobIds.map(() => '?').join(', ');
+    const placeholders = jobIds.map(() => '?').join(',');
     const rows = this.db
       .all<Record<string, unknown>>(
         `SELECT js.*
@@ -117,9 +117,8 @@ export class ScoreRepo {
              GROUP BY job_id
            ) latest
              ON latest.job_id = js.job_id
-            AND latest.max_rowid = js.rowid
-          WHERE js.job_id IN (${placeholders})`,
-        [...jobIds, ...jobIds],
+             AND latest.max_rowid = js.rowid`,
+        jobIds,
       )
       .map(toRow);
 

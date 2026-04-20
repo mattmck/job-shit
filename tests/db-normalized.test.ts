@@ -117,6 +117,24 @@ describe('ScoreRepo', () => {
     }
   });
 
+  it('findLatestForJobs returns latest score per job in one call', () => {
+    const { db, cleanup } = makeTempDb();
+    try {
+      const { job: firstJob } = makeJob(db);
+      const { job: secondJob } = makeJob(db);
+      const repo = new ScoreRepo(db);
+      repo.create({ jobId: firstJob.id, scorecard: { ...sampleScorecard, overall: 70 } });
+      repo.create({ jobId: firstJob.id, scorecard: { ...sampleScorecard, overall: 90 } });
+      repo.create({ jobId: secondJob.id, scorecard: { ...sampleScorecard, overall: 81 } });
+
+      const latest = repo.findLatestForJobs([firstJob.id, secondJob.id]);
+      expect(latest[firstJob.id]?.overall).toBe(90);
+      expect(latest[secondJob.id]?.overall).toBe(81);
+    } finally {
+      cleanup();
+    }
+  });
+
   it('returns null for job with no scores', () => {
     const { db, cleanup } = makeTempDb();
     try {

@@ -40,4 +40,8 @@ describe('getTailorTaskMetadata', () => {
     expect(getTailorTaskMetadata(makeTask(JSON.stringify({ _frontendJobId: 'legacy-1' }))).frontendJobId).toBe('legacy-1');
     expect(getTailorTaskMetadata(makeTask(JSON.stringify({}))).frontendJobId).toBe('db-job-1');
   });
+
+  it('falls back to DB job id when input json is malformed', () => {
+    expect(getTailorTaskMetadata(makeTask('{')).frontendJobId).toBe('db-job-1');
+  });
 });

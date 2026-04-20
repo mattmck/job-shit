@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { useWorkspace } from '../../context';
 import type { Job } from '../../types';
 import { Button } from '@/components/ui/button';
+import { legacyHuntrMatchKey } from '@/lib/job-match';
 import { appendUniqueJobIdsToQueue } from '@/lib/queues';
 import * as api from '../../api/client';
 import { ScoreCards } from '../scores/ScoreCards';
@@ -10,16 +11,6 @@ import { JobList } from '../jobs/JobList';
 import { PasteJDModal } from '../jobs/PasteJDModal';
 import { TailorConfirmModal } from '../jobs/TailorConfirmModal';
 import { KeywordsPanel } from './KeywordsPanel';
-
-function normalizedJobPart(value: string | null | undefined): string {
-  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function legacyHuntrMatchKey(job: Pick<Job, 'company' | 'title'>): string | null {
-  const company = normalizedJobPart(job.company);
-  const title = normalizedJobPart(job.title);
-  return company && title ? `${company}\u0000${title}` : null;
-}
 
 function uniqueByLegacyKey(jobs: Job[]): Map<string, Job | null> {
   const byKey = new Map<string, Job | null>();

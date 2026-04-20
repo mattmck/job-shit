@@ -9,6 +9,7 @@ import type {
   PromptSources,
   EditorData,
 } from './types.js';
+import { legacyHuntrMatchKey } from './lib/job-match.js';
 
 // ---------------------------------------------------------------------------
 // Initial state
@@ -51,16 +52,6 @@ export const initialState: WorkspaceState = {
   runFeedback: null,
   activityLog: [],
 };
-
-function normalizedJobPart(value: string | null | undefined): string {
-  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function legacyHuntrMatchKey(job: Pick<Job, 'company' | 'title'>): string | null {
-  const company = normalizedJobPart(job.company);
-  const title = normalizedJobPart(job.title);
-  return company && title ? `${company}\u0000${title}` : null;
-}
 
 // ---------------------------------------------------------------------------
 // Action union type

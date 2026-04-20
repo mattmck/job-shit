@@ -43,7 +43,7 @@ export function useEditorAutoSave(debounceMs = 1500) {
 
     const resolveSaveJobId = async () => {
       if (pending.dbJobId) return pending.dbJobId;
-      if (!pending.workspaceId) return pending.frontendJobId;
+      if (!pending.workspaceId) return null;
 
       const dbJob = await api.createJob(pending.workspaceId, {
         company: pending.job.company,
@@ -66,8 +66,12 @@ export function useEditorAutoSave(debounceMs = 1500) {
     };
 
     resolveSaveJobId()
-      .then((saveJobId) => api.saveDocument(saveJobId, pending.docType, markdown, editorDataJson))
-      .then(() => {
+      .then((saveJobId) => {
+        if (!saveJobId) return false;
+        return api.saveDocument(saveJobId, pending.docType, markdown, editorDataJson).then(() => true);
+      })
+      .then((saved) => {
+        if (!saved) return;
         lastSavedRef.current.set(lastSavedKey, pending.fingerprint);
         console.info('[workbench] Auto-saved editor data', {
           jobId: pending.frontendJobId,
@@ -102,6 +106,8 @@ export function useEditorAutoSave(debounceMs = 1500) {
 
     const editorData = job._editorData;
     const jobId = job.id;
+
+    if (!state.activeWorkspaceId && !job.dbJobId) return;
 
     // Build a fingerprint to detect actual changes
     const editorDataJson = JSON.stringify(editorData);

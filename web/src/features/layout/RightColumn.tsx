@@ -56,6 +56,30 @@ export function RightColumn() {
     window.addEventListener('pointerup', handleUp, { once: true });
   }, [showEditor, showPreview]);
 
+  const handleResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!showEditor || !showPreview) return;
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setEditorPercent((current) => Math.max(22, current - 4));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setEditorPercent((current) => Math.min(78, current + 4));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setEditorPercent(22);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setEditorPercent(78);
+    }
+  }, [showEditor, showPreview]);
+
   return (
     <section className="panel-surface flex min-w-0 flex-1 flex-col overflow-hidden rounded-[1.65rem] min-h-0">
       <div className={`flex flex-1 min-h-0 overflow-hidden px-3 pb-3 gap-3 ${showPanel ? 'pt-3' : ''}`}>
@@ -96,7 +120,11 @@ export function RightColumn() {
               role="separator"
               aria-orientation="vertical"
               tabIndex={0}
+              aria-valuemin={22}
+              aria-valuemax={78}
+              aria-valuenow={Math.round(editorPercent)}
               onPointerDown={handleResizeStart}
+              onKeyDown={handleResizeKeyDown}
               className="group relative mx-1 flex w-4 shrink-0 cursor-col-resize touch-none items-center justify-center bg-transparent"
             >
               <div className="h-24 w-[3px] rounded-full bg-border/90 transition-colors duration-200 group-hover:bg-primary/35" />

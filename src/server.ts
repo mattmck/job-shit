@@ -49,9 +49,16 @@ import { WorkspaceRepo } from './repositories/workspaces.js';
 import { JobRepo } from './repositories/jobs.js';
 import { DocumentRepo } from './repositories/documents.js';
 import { TaskRepo } from './repositories/tasks.js';
+import { ScoreRepo } from './repositories/scores.js';
+import { GapRepo } from './repositories/gap.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 4312;
+
+function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try { return JSON.parse(raw) as T; } catch { return fallback; }
+}
 
 interface ManualRunBody {
   input: TailorInput;
@@ -454,8 +461,48 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
     const ws = new WorkspaceRepo(db).findById(wsMatch[1]);
     if (!ws) { sendJson(res, 404, { error: 'Not found' }); return; }
     const jobs = new JobRepo(db).listByWorkspace(ws.id);
-    const docs = new DocumentRepo(db).findLatestForJobs(jobs.map(j => j.id));
-    const jobsWithDocs = jobs.map(j => ({ ...j, documents: docs[j.id] ?? {} }));
+    const jobIds = jobs.map(j => j.id);
+    const docs = new DocumentRepo(db).findLatestForJobs(jobIds);
+    const scores = new ScoreRepo(db).findLatestForJobs(jobIds);
+    const gaps = new GapRepo(db).findLatestWithKeywordsForJobs(jobIds);
+    const jobsWithDocs = jobs.map((j) => {
+      const score = scores[j.id];
+      const gap = gaps[j.id];
+      let scorecard: unknown = undefined;
+      if (score) {
+        const categories = safeJsonParse(score.categoriesJson, {}) as Record<string, number>;
+        const documents = safeJsonParse(score.documentsJson, []);
+        const notes = safeJsonParse(score.notesJson, []);
+        const blockingIssues = safeJsonParse(score.blockingIssuesJson, []);
+        scorecard = {
+          ...categories,
+          overall: score.overall ?? undefined,
+          verdict: score.verdict ?? undefined,
+          confidence: score.confidence != null ? Number(score.confidence) : undefined,
+          summary: score.summary ?? undefined,
+          notes,
+          blockingIssues,
+          documents,
+        };
+      }
+      let gapAnalysis: unknown = undefined;
+      if (gap) {
+        const matched = gap.keywords.filter((k) => k.status === 'matched')
+          .map((k) => ({ term: k.term, category: k.category ?? 'other' }));
+        const missing = gap.keywords.filter((k) => k.status === 'missing')
+          .map((k) => ({ term: k.term, category: k.category ?? 'other' }));
+        const partial = gap.keywords.filter((k) => k.status === 'partial')
+          .map((k) => ({ jdTerm: k.term, resumeTerm: k.category ?? '', relationship: 'related' }));
+        gapAnalysis = {
+          matchedKeywords: matched,
+          missingKeywords: missing,
+          partialMatches: partial,
+          overallFit: gap.analysis.overallFit ?? 'moderate',
+          narrative: gap.analysis.narrative ?? '',
+        };
+      }
+      return { ...j, documents: docs[j.id] ?? {}, scorecard, gapAnalysis };
+    });
     sendJson(res, 200, { ...ws, jobs: jobsWithDocs });
     return;
   }
@@ -478,7 +525,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
   // ── DB-backed job routes ──────────────────────────────────────────────────
   const wsJobsMatch = pathname.match(/^\/api\/workspaces\/([a-z0-9-]+)\/jobs$/);
   if (method === 'POST' && wsJobsMatch) {
-    const body = await readJsonBody<{ company: string; title?: string; jd?: string; stage?: string; source?: string; huntrId?: string }>(req);
+    const body = await readJsonBody<{ company: string; title?: string; jd?: string; stage?: string; source?: string; huntrId?: string; listAddedAt?: string | null }>(req);
     const job = new JobRepo(getDb()).createOrUpdate({ workspaceId: wsJobsMatch[1], ...body });
     sendJson(res, 201, job);
     return;
@@ -531,12 +578,25 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
   }
 
   if (method === 'POST' && pathname === '/api/tasks') {
-    const body = await readJsonBody<{ workspaceId: string; jobId: string; type: string; input: unknown; agents?: unknown }>(req);
+    const body = await readJsonBody<{
+      workspaceId: string;
+      jobId: string;
+      type: string;
+      input: unknown;
+      agents?: unknown;
+      promptOverrides?: PromptOverrides;
+      includeScoring?: boolean;
+    }>(req);
     const task = new TaskRepo(getDb()).create({
       workspaceId: body.workspaceId,
       jobId: body.jobId,
       type: body.type as 'tailor' | 'score' | 'gap' | 'regenerate-section',
-      inputJson: JSON.stringify({ input: body.input, agents: body.agents }),
+      inputJson: JSON.stringify({
+        input: body.input,
+        agents: body.agents,
+        promptOverrides: body.promptOverrides,
+        includeScoring: body.includeScoring ?? true,
+      }),
     });
     sendJson(res, 201, task);
     return;
@@ -570,6 +630,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
         url: entry.job.url ?? '',
         listName: entry.listName ?? '',
         descriptionText: entry.descriptionText,
+        listAddedAt: entry.listAddedAt ?? '',
+        listPosition: entry.listPosition ?? null,
       })),
     });
     return;
@@ -722,6 +784,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<voi
         url: entry.job.url ?? '',
         listName: entry.listName ?? 'Wishlist',
         descriptionText: entry.descriptionText,
+        listAddedAt: entry.listAddedAt ?? '',
+        listPosition: entry.listPosition ?? null,
       })),
     });
     return;
@@ -924,7 +988,12 @@ export async function startWorkbenchServer(
   // Reset any tasks that were mid-flight when server last stopped
   new TaskRepo(db).resetStuck();
   const worker = createWorker(db, {
-    runTailor: (input, agents) => runTailorWorkflow({ input, agents: resolveAgents(agents as AgentSelection | undefined) }),
+    runTailor: (input, agents, options) => runTailorWorkflow({
+      input,
+      agents: resolveAgents(agents as AgentSelection | undefined),
+      promptOverrides: options?.promptOverrides,
+      includeScoring: options?.includeScoring ?? true,
+    }),
   });
   const { stop: stopWorker } = worker.start(2000);
 

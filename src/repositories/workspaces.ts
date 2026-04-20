@@ -72,7 +72,12 @@ export class WorkspaceRepo {
   }
 
   list(): WorkspaceRow[] {
-    return this.db.all<Record<string, unknown>>('SELECT * FROM workspaces ORDER BY updated_at DESC, rowid DESC').map(toRow);
+    return this.db.all<Record<string, unknown>>('SELECT * FROM workspaces ORDER BY updated_at DESC, rowid ASC').map(toRow);
+  }
+
+  findByName(name: string): WorkspaceRow | undefined {
+    const raw = this.db.get<Record<string, unknown>>('SELECT * FROM workspaces WHERE name = ? ORDER BY rowid ASC LIMIT 1', [name]);
+    return raw ? toRow(raw) : undefined;
   }
 
   update(id: string, input: UpdateInput): WorkspaceRow | undefined {

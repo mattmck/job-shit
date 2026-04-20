@@ -6,6 +6,9 @@ import { WorkspaceRepo } from '../src/repositories/workspaces.js';
 import { JobRepo } from '../src/repositories/jobs.js';
 import { TaskRepo } from '../src/repositories/tasks.js';
 import { DocumentRepo } from '../src/repositories/documents.js';
+import { ScoreRepo } from '../src/repositories/scores.js';
+import { GapRepo } from '../src/repositories/gap.js';
+import type { TailorRunResult } from '../src/types/index.js';
 import { join } from 'path';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -49,6 +52,38 @@ describe('createWorker', () => {
     }
   });
 
+  it('requests scoring for tailor tasks by default', async () => {
+    const { db, cleanup } = makeTempDb();
+    try {
+      const ws = new WorkspaceRepo(db).create({ name: 'WS', sourceResume: '# Matt', sourceBio: 'bio' });
+      const job = new JobRepo(db).create({ workspaceId: ws.id, company: 'Acme', jd: 'Build things' });
+      new TaskRepo(db).create({
+        workspaceId: ws.id,
+        jobId: job.id,
+        type: 'tailor',
+        inputJson: JSON.stringify({
+          input: { resume: '# Matt', bio: 'bio', company: 'Acme', jobDescription: 'Build things' },
+          agents: { tailoringModel: 'gpt-test' },
+        }),
+      });
+
+      const mockRun = vi.fn().mockResolvedValue({
+        output: { resume: '# Tailored Matt', coverLetter: 'Dear Hiring Manager' },
+      });
+
+      const worker = createWorker(db, { runTailor: mockRun });
+      await worker.processOne();
+
+      expect(mockRun).toHaveBeenCalledWith(
+        expect.objectContaining({ company: 'Acme' }),
+        expect.objectContaining({ tailoringModel: 'gpt-test' }),
+        expect.objectContaining({ includeScoring: true }),
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
   it('marks task failed when runTailor throws', async () => {
     const { db, cleanup } = makeTempDb();
     try {
@@ -79,6 +114,63 @@ describe('createWorker', () => {
       const worker = createWorker(db, { runTailor: vi.fn() });
       const result = await worker.processOne();
       expect(result).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('persists evaluator scorecard and gap analysis to normalized tables', async () => {
+    const { db, cleanup } = makeTempDb();
+    try {
+      const ws = new WorkspaceRepo(db).create({ name: 'WS' });
+      const job = new JobRepo(db).create({ workspaceId: ws.id, company: 'Acme' });
+      const taskRepo = new TaskRepo(db);
+      taskRepo.create({
+        workspaceId: ws.id, jobId: job.id, type: 'tailor',
+        inputJson: JSON.stringify({ input: { resume: '# Matt', bio: '', company: 'Acme', jobDescription: 'Build' }, agents: {} }),
+      });
+
+      const mockResult: Partial<TailorRunResult> = {
+        output: { resume: '# Tailored', coverLetter: 'Dear HM' },
+        artifacts: { resumeHtml: '<html/>', coverLetterHtml: '<html/>' },
+        scorecard: {
+          heuristic: { resume: 75, coverLetter: 80, overall: 77 } as never,
+          evaluator: {
+            overall: 88,
+            verdict: 'strong_match',
+            notes: ['Good job'],
+            blockingIssues: [],
+            documents: [],
+          },
+        },
+        gapAnalysis: {
+          matchedKeywords: [{ term: 'python', category: 'language' }],
+          missingKeywords: [{ term: 'rust', category: 'language' }],
+          partialMatches: [],
+          impliedSkills: [],
+          experienceRequirements: [],
+          overallFit: 'strong',
+          narrative: 'Solid fit.',
+          exactPhrases: [],
+          tailoringHints: [],
+        },
+      };
+
+      const worker = createWorker(db, {
+        runTailor: vi.fn().mockResolvedValue(mockResult as TailorRunResult),
+      });
+      await worker.processOne();
+
+      // Score persisted
+      const score = new ScoreRepo(db).findLatestForJob(job.id);
+      expect(score?.overall).toBe(88);
+      expect(score?.verdict).toBe('strong_match');
+
+      // Gap persisted
+      const gap = new GapRepo(db).findLatestWithKeywords(job.id);
+      expect(gap?.analysis.overallFit).toBe('strong');
+      const matched = gap?.keywords.filter(k => k.status === 'matched');
+      expect(matched?.[0].term).toBe('python');
     } finally {
       cleanup();
     }

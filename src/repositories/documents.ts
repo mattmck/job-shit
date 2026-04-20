@@ -61,4 +61,31 @@ export class DocumentRepo {
       [jobId, docType],
     ).map(toRow);
   }
+
+  findLatestForJobs(jobIds: string[]): Record<string, { resume?: string; cover?: string; resumeEditorDataJson?: string | null; coverEditorDataJson?: string | null }> {
+    if (jobIds.length === 0) return {};
+    const placeholders = jobIds.map(() => '?').join(',');
+    const rows = this.db.all<Record<string, unknown>>(
+      `SELECT d.job_id, d.doc_type, d.markdown, d.editor_data_json FROM job_documents d
+       INNER JOIN (
+         SELECT job_id, doc_type, MAX(version) AS max_version
+         FROM job_documents WHERE job_id IN (${placeholders})
+         GROUP BY job_id, doc_type
+       ) m ON d.job_id = m.job_id AND d.doc_type = m.doc_type AND d.version = m.max_version`,
+      jobIds,
+    );
+    const result: Record<string, { resume?: string; cover?: string; resumeEditorDataJson?: string | null; coverEditorDataJson?: string | null }> = {};
+    for (const row of rows) {
+      const jobId = row.job_id as string;
+      if (!result[jobId]) result[jobId] = {};
+      if (row.doc_type === 'resume') {
+        result[jobId].resume = row.markdown as string;
+        result[jobId].resumeEditorDataJson = (row.editor_data_json as string) ?? null;
+      } else if (row.doc_type === 'cover') {
+        result[jobId].cover = row.markdown as string;
+        result[jobId].coverEditorDataJson = (row.editor_data_json as string) ?? null;
+      }
+    }
+    return result;
+  }
 }

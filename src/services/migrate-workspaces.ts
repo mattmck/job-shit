@@ -28,6 +28,13 @@ export function migrateJsonWorkspaces(db: DatabaseAdapter): number {
       const raw = JSON.parse(readFileSync(filePath, 'utf8')) as SavedWorkspace;
       const snap = raw.snapshot;
 
+      // Skip if a workspace with this name already exists in the DB
+      if (wsRepo.findByName(raw.name)) {
+        renameSync(filePath, join(MIGRATED_DIR, file));
+        count++;
+        continue;
+      }
+
       const ws = wsRepo.create({
         name: raw.name,
         sourceResume: snap.documents?.resume ?? null,
@@ -47,7 +54,7 @@ export function migrateJsonWorkspaces(db: DatabaseAdapter): number {
           company: job.company,
           title: job.title,
           jd: job.jd,
-          stage: job.status ?? 'wishlist',
+          stage: job.stage ?? 'wishlist',
           source: job.source ?? 'manual',
         });
         if (job.result?.output?.resume) {

@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "web": "cd web && npm run dev",
-    "web:build": "cd web && npm run build"
+    "web:build": "cd web && npm run build",
+    "dev:full": "concurrently -n api,web -c blue,green \"npm run serve\" \"npm run web\""
   },
   "repository": {
     "type": "git",
@@ -60,6 +61,7 @@
     "@types/sanitize-html": "^2.16.1",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
+    "concurrently": "^9.2.1",
     "eslint": "^10.0.3",
     "globals": "^17.4.0",
     "tsx": "^4.21.0",

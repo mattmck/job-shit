@@ -10,12 +10,13 @@ export interface JobRow {
   stage: string;
   source: string;
   huntrId: string | null;
+  listAddedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-type CreateInput = { workspaceId: string; company: string; title?: string; jd?: string; stage?: string; source?: string; huntrId?: string };
-type UpdateInput = Partial<Pick<JobRow, 'title' | 'jd' | 'stage' | 'source' | 'huntrId' | 'company'>>;
+type CreateInput = { workspaceId: string; company: string; title?: string; jd?: string; stage?: string; source?: string; huntrId?: string; listAddedAt?: string | null };
+type UpdateInput = Partial<Pick<JobRow, 'title' | 'jd' | 'stage' | 'source' | 'huntrId' | 'company' | 'listAddedAt'>>;
 
 function toRow(raw: Record<string, unknown>): JobRow {
   return {
@@ -27,6 +28,7 @@ function toRow(raw: Record<string, unknown>): JobRow {
     stage: raw.stage as string,
     source: raw.source as string,
     huntrId: (raw.huntr_id as string) ?? null,
+    listAddedAt: (raw.list_added_at as string) ?? null,
     createdAt: raw.created_at as string,
     updatedAt: raw.updated_at as string,
   };
@@ -39,10 +41,10 @@ export class JobRepo {
     const now = new Date().toISOString();
     const id = randomUUID();
     this.db.run(
-      `INSERT INTO jobs (id,workspace_id,company,title,jd,stage,source,huntr_id,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO jobs (id,workspace_id,company,title,jd,stage,source,huntr_id,list_added_at,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [id, input.workspaceId, input.company, input.title ?? null, input.jd ?? null,
-       input.stage ?? 'wishlist', input.source ?? 'manual', input.huntrId ?? null, now, now],
+       input.stage ?? 'wishlist', input.source ?? 'manual', input.huntrId ?? null, input.listAddedAt ?? null, now, now],
     );
     return this.findById(id)!;
   }
@@ -50,6 +52,31 @@ export class JobRepo {
   findById(id: string): JobRow | undefined {
     const raw = this.db.get<Record<string, unknown>>('SELECT * FROM jobs WHERE id = ?', [id]);
     return raw ? toRow(raw) : undefined;
+  }
+
+  findByHuntrId(workspaceId: string, huntrId: string): JobRow | undefined {
+    const raw = this.db.get<Record<string, unknown>>(
+      'SELECT * FROM jobs WHERE workspace_id = ? AND huntr_id = ? ORDER BY rowid ASC LIMIT 1',
+      [workspaceId, huntrId],
+    );
+    return raw ? toRow(raw) : undefined;
+  }
+
+  createOrUpdate(input: CreateInput): JobRow {
+    const existing = input.huntrId
+      ? this.findByHuntrId(input.workspaceId, input.huntrId)
+      : undefined;
+    if (!existing) return this.create(input);
+
+    return this.update(existing.id, {
+      company: input.company,
+      title: input.title,
+      jd: input.jd,
+      stage: input.stage,
+      source: input.source,
+      huntrId: input.huntrId,
+      listAddedAt: input.listAddedAt,
+    })!;
   }
 
   listByWorkspace(workspaceId: string): JobRow[] {
@@ -67,6 +94,7 @@ export class JobRepo {
     if (input.stage !== undefined) map.stage = input.stage;
     if (input.source !== undefined) map.source = input.source;
     if (input.huntrId !== undefined) map.huntr_id = input.huntrId;
+    if (input.listAddedAt !== undefined) map.list_added_at = input.listAddedAt;
     const keys = Object.keys(map);
     this.db.run(
       `UPDATE jobs SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ?`,

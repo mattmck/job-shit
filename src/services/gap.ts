@@ -86,6 +86,10 @@ function stripJobDescriptionNoise(text: string): string {
 
 // ── Keyword grounding ─────────────────────────────────────────────────────
 
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Normalize a term for fuzzy substring comparison against JD text.
 // Lowercase, strip punctuation, collapse whitespace, drop common suffixes.
 function normalizeTerm(term: string): string {
@@ -145,12 +149,12 @@ function termAppearsInJd(term: string, jdNormalized: string): boolean {
     const tokens = checkTerm.split(' ').filter((t) => t.length > 0);
     if (tokens.length === 1) {
       // Single token: use word boundary check
-      const regex = new RegExp(`\\b${tokens[0].replace(/[+#/]/g, '\\$&')}\\b`);
+      const regex = new RegExp(`\\b${escapeRegExp(tokens[0])}\\b`);
       return regex.test(jdNormalized);
     } else {
       // Multi-word: each token must match as whole word
       return tokens.every((token) => {
-        const regex = new RegExp(`\\b${token.replace(/[+#/]/g, '\\$&')}\\b`);
+        const regex = new RegExp(`\\b${escapeRegExp(token)}\\b`);
         return regex.test(jdNormalized);
       });
     }

@@ -224,14 +224,14 @@ async function getListsForBoard(
 //   client: HuntrApiClient,
 //   jobId: string,
 // ): Promise<{ job: HuntrJob; boardId: string } | null> {
-  const boards = await getBoards(client);
-  for (const board of boards) {
-    const jobs = await getJobsForBoard(client, board.id);
-    const job = jobs.find((j) => j.id === jobId);
-    if (job) return { job, boardId: board.id };
-  }
-  return null;
-}
+//   const boards = await getBoards(client);
+//   for (const board of boards) {
+//     const jobs = await getJobsForBoard(client, board.id);
+//     const job = jobs.find((j) => j.id === jobId);
+//     if (job) return { job, boardId: board.id };
+//   }
+//   return null;
+// }
 
 // ---------------------------------------------------------------------------
 // Commands

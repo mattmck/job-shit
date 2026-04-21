@@ -208,4 +208,76 @@ describe('web state reducer', () => {
     expect(next.jobs[0]?.stage).toBe('interview');
     expect(next.activeJobId).toBe('huntr-1');
   });
+
+  describe('SYNC_TAILOR_FROM_TASKS', () => {
+    it('rehydrates tailor queue and running job from backend task state', () => {
+      const state = makeState({ tailorQueue: [], tailorQueueTotal: 0, tailorRunning: null });
+      const next = reducer(state, {
+        type: 'SYNC_TAILOR_FROM_TASKS',
+        pendingIds: ['job-2', 'job-3', 'job-4'],
+        runningId: 'job-1',
+        runningStartedAt: 1_700_000_000_000,
+      });
+
+      expect(next.tailorQueue).toEqual(['job-2', 'job-3', 'job-4']);
+      expect(next.tailorRunning).toBe('job-1');
+      expect(next.tailorRunningStartedAt).toBe(1_700_000_000_000);
+      // Total includes the currently-running job so progress reflects all in-flight work.
+      expect(next.tailorQueueTotal).toBe(4);
+    });
+
+    it('preserves an existing startedAt when the running job is unchanged', () => {
+      const state = makeState({
+        tailorQueue: ['job-2'],
+        tailorQueueTotal: 2,
+        tailorRunning: 'job-1',
+        tailorRunningStartedAt: 1_699_999_999_000,
+      });
+      const next = reducer(state, {
+        type: 'SYNC_TAILOR_FROM_TASKS',
+        pendingIds: ['job-2'],
+        runningId: 'job-1',
+        runningStartedAt: 1_700_000_000_000,
+      });
+
+      expect(next.tailorRunningStartedAt).toBe(1_699_999_999_000);
+    });
+
+    it('clears state when no tailor tasks remain', () => {
+      const state = makeState({
+        tailorQueue: ['job-2'],
+        tailorQueueTotal: 3,
+        tailorRunning: 'job-1',
+        tailorRunningStartedAt: 1_700_000_000_000,
+      });
+      const next = reducer(state, {
+        type: 'SYNC_TAILOR_FROM_TASKS',
+        pendingIds: [],
+        runningId: null,
+      });
+
+      expect(next.tailorQueue).toEqual([]);
+      expect(next.tailorQueueTotal).toBe(0);
+      expect(next.tailorRunning).toBeNull();
+      expect(next.tailorRunningStartedAt).toBe(0);
+    });
+
+    it('keeps prior total when it exceeds current in-flight (so progress bar reflects overall batch)', () => {
+      const state = makeState({
+        tailorQueue: ['job-2', 'job-3'],
+        tailorQueueTotal: 5,
+        tailorRunning: 'job-1',
+        tailorRunningStartedAt: 1_700_000_000_000,
+      });
+      const next = reducer(state, {
+        type: 'SYNC_TAILOR_FROM_TASKS',
+        pendingIds: ['job-3'],
+        runningId: 'job-2',
+      });
+
+      expect(next.tailorQueueTotal).toBe(5);
+      expect(next.tailorQueue).toEqual(['job-3']);
+      expect(next.tailorRunning).toBe('job-2');
+    });
+  });
 });

@@ -91,6 +91,7 @@ export type Action =
   | { type: 'SET_JOB_DOCUMENT_STATE'; id: string; doc: ActiveDoc; editorData: EditorData; markdown: string }
   | { type: 'SET_TAILOR_QUEUE'; queue: string[]; total?: number }
   | { type: 'SET_TAILOR_RUNNING'; id: string | null; startedAt?: number }
+  | { type: 'SYNC_TAILOR_FROM_TASKS'; pendingIds: string[]; runningId: string | null; runningStartedAt?: number }
   | { type: 'SET_TAILOR_SUMMARY'; summary: { tailored: number; failed: number } | null }
   | { type: 'SET_JOB_SCORES_STALE'; id: string; stale: boolean }
   | { type: 'SET_REGRADE_QUEUE'; queue: string[]; total?: number }
@@ -335,6 +336,29 @@ export function reducer(state: WorkspaceState, action: Action): WorkspaceState {
         tailorRunningStartedAt:
           action.id == null ? 0 : action.startedAt ?? Date.now(),
       };
+
+    case 'SYNC_TAILOR_FROM_TASKS': {
+      // Reconcile tailor queue/running from backend task state. This is what makes
+      // the tailoring progress bar survive a page refresh: pending tasks in SQLite
+      // repopulate the queue even though the in-memory queue was wiped.
+      const pendingSet = new Set(action.pendingIds);
+      const runningId = action.runningId;
+      const inFlight = runningId != null ? pendingSet.size + 1 : pendingSet.size;
+      const total = Math.max(state.tailorQueueTotal, inFlight);
+      const runningStartedAt =
+        runningId == null
+          ? 0
+          : state.tailorRunning === runningId && state.tailorRunningStartedAt
+          ? state.tailorRunningStartedAt
+          : action.runningStartedAt ?? Date.now();
+      return {
+        ...state,
+        tailorQueue: action.pendingIds,
+        tailorQueueTotal: inFlight === 0 ? 0 : total,
+        tailorRunning: runningId,
+        tailorRunningStartedAt: runningStartedAt,
+      };
+    }
 
     case 'SET_TAILOR_SUMMARY':
       return { ...state, tailorLastSummary: action.summary };

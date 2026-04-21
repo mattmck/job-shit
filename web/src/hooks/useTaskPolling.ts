@@ -1,15 +1,23 @@
 import { useEffect, useRef } from 'react';
 import { listTasks, type TaskRecord } from '../api/client.js';
+import { getTailorTaskMetadata } from '../lib/tasks.js';
+
+interface TailorSyncSnapshot {
+  pendingIds: string[];
+  runningId: string | null;
+  runningStartedAt: number;
+}
 
 interface UseTaskPollingOptions {
   workspaceId: string | null;
   onTaskCompleted: (task: TaskRecord) => void;
   onTaskFailed: (task: TaskRecord) => void;
   onActiveTask?: (task: TaskRecord) => void;
+  onTailorSync?: (snapshot: TailorSyncSnapshot) => void;
   intervalMs?: number;
 }
 
-export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onActiveTask, intervalMs = 2000 }: UseTaskPollingOptions) {
+export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onActiveTask, onTailorSync, intervalMs = 2000 }: UseTaskPollingOptions) {
   const knownTasksRef = useRef<Map<string, TaskRecord>>(new Map());
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -70,6 +78,22 @@ export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onA
           known.set(task.id, task);
         }
 
+        if (onTailorSync) {
+          const tailorTasks = tasks.filter((t) => t.type === 'tailor');
+          const pendingIds: string[] = [];
+          let runningId: string | null = null;
+          let runningStartedAt = 0;
+          for (const task of tailorTasks) {
+            if (task.status === 'pending') {
+              pendingIds.push(getTailorTaskMetadata(task).frontendJobId);
+            } else if (task.status === 'running' && runningId == null) {
+              runningId = getTailorTaskMetadata(task).frontendJobId;
+              runningStartedAt = Date.parse(task.updatedAt) || Date.parse(task.createdAt) || Date.now();
+            }
+          }
+          onTailorSync({ pendingIds, runningId, runningStartedAt });
+        }
+
         const hasActive = tasks.some(t => t.status === 'pending' || t.status === 'running');
         if (hasActive && !cancelled) {
           schedulePoll(intervalMs);
@@ -91,5 +115,5 @@ export function useTaskPolling({ workspaceId, onTaskCompleted, onTaskFailed, onA
         timeoutRef.current = null;
       }
     };
-  }, [workspaceId, onTaskCompleted, onTaskFailed, onActiveTask, intervalMs]);
+  }, [workspaceId, onTaskCompleted, onTaskFailed, onActiveTask, onTailorSync, intervalMs]);
 }

@@ -103,28 +103,30 @@ function AppShell() {
 
   const handleActiveTask = useCallback((task: TaskRecord) => {
     if (task.type !== 'tailor') return;
-    if (state.tailorRunning) return;
     try {
       const input = getTailorTaskMetadata(task);
       const frontendJobId = input.frontendJobId;
       const jobLabel = `${input.company ?? 'selected company'}${input.jobTitle ? ` — ${input.jobTitle}` : ''}`;
-      const startedAt = Date.parse(task.updatedAt) || Date.parse(task.createdAt) || Date.now();
-      dispatch({ type: 'SET_TAILOR_RUNNING', id: frontendJobId, startedAt });
+      // Mark the job as tailoring so the list shows the spinner. tailorRunning and
+      // the pending queue itself are owned by the SYNC_TAILOR_FROM_TASKS action fired
+      // at the end of each poll — doing it here would flicker for pending tasks.
       dispatch({
         type: 'UPDATE_JOB',
         id: frontendJobId,
         patch: { status: 'tailoring', dbJobId: task.jobId },
       });
-      dispatch({
-        type: 'SET_RUN_FEEDBACK',
-        feedback: { text: `Tailoring ${jobLabel}…`, type: 'working' },
-      });
-      dispatch({
-        type: 'ADD_ACTIVITY_LOG',
-        message: `Resumed tracking in-flight tailoring for ${jobLabel}.`,
-        logType: 'working',
-      });
-      console.info('[workbench] Resumed tracking active tailoring task', {
+      if (task.status === 'running' && !state.tailorRunning) {
+        dispatch({
+          type: 'SET_RUN_FEEDBACK',
+          feedback: { text: `Tailoring ${jobLabel}…`, type: 'working' },
+        });
+        dispatch({
+          type: 'ADD_ACTIVITY_LOG',
+          message: `Resumed tracking in-flight tailoring for ${jobLabel}.`,
+          logType: 'working',
+        });
+      }
+      console.info('[workbench] Observed active tailoring task', {
         taskId: task.id,
         frontendJobId,
         status: task.status,
@@ -134,11 +136,24 @@ function AppShell() {
     }
   }, [dispatch, state.tailorRunning]);
 
+  const handleTailorSync = useCallback(
+    (snapshot: { pendingIds: string[]; runningId: string | null; runningStartedAt: number }) => {
+      dispatch({
+        type: 'SYNC_TAILOR_FROM_TASKS',
+        pendingIds: snapshot.pendingIds,
+        runningId: snapshot.runningId,
+        runningStartedAt: snapshot.runningStartedAt || undefined,
+      });
+    },
+    [dispatch],
+  );
+
   useTaskPolling({
     workspaceId: state.activeWorkspaceId,
     onTaskCompleted: handleTaskCompleted,
     onTaskFailed: handleTaskFailed,
     onActiveTask: handleActiveTask,
+    onTailorSync: handleTailorSync,
   });
 
   const [isDesktop, setIsDesktop] = useState(() => (

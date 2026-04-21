@@ -12,7 +12,9 @@ export function useTailorQueue() {
   useEffect(() => {
     if (processingRef.current) return;
     if (state.tailorQueue.length === 0) return;
-    if (state.tailorRunning !== null) return;
+    // Intentionally no gate on tailorRunning: every selected job should land as a
+    // pending DB task as fast as possible so pending tasks survive a page refresh.
+    // The worker still processes them one at a time via TaskRepo.claimNext.
 
     const jobId = state.tailorQueue[0];
     const job = state.jobs.find((j) => j.id === jobId);
@@ -26,7 +28,9 @@ export function useTailorQueue() {
 
     async function processJob() {
       dispatch({ type: 'SET_TAILOR_SUMMARY', summary: null });
-      dispatch({ type: 'SET_TAILOR_RUNNING', id: jobId });
+      // Don't optimistically set tailorRunning here — with the serial gate removed
+      // we might enqueue several jobs in quick succession and only one is actually
+      // running at the worker. The task poller sets tailorRunning from real state.
       dispatch({ type: 'UPDATE_JOB', id: jobId, patch: { status: 'tailoring', error: null } });
       dispatch({
         type: 'SET_RUN_FEEDBACK',
